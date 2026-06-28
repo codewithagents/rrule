@@ -57,28 +57,31 @@ const corpus: Corpus = JSON.parse(readFileSync(corpusPath, 'utf-8'))
  * Cases that are intentionally skipped in this release.
  *
  * Reason codes:
- *   DST  - Requires timezone-aware DST transition semantics. The engine uses
- *          Temporal wall-clock arithmetic for DAILY+ which should handle most
- *          DST cases, but for some edge cases (ambiguous times in folds or
- *          sub-hour DST shifts like Australia/Lord_Howe) the Temporal
- *          disambiguation strategy may differ from python-dateutil.
+ *   GAP  - Spring-forward gap: dateutil represents the nonexistent wall-clock
+ *          time using the pre-gap UTC offset (e.g. 02:30-08:00 in a gap where
+ *          02:00-03:00 PST does not exist). Temporal prohibits instants inside
+ *          a DST gap and always normalises to the nearest valid time (shifting
+ *          the wall-clock forward). Both representations resolve to the same
+ *          epoch milliseconds, but the ISO strings differ. This is a genuine
+ *          dateutil quirk for nonexistent times that Temporal cannot replicate
+ *          without producing invalid instants.
  */
 const KNOWN_GAPS: Map<string, string> = new Map([
-  // DST edge cases deferred to the timezone-correctness follow-up.
-  // These cases cross DST boundaries in ways that require specific
-  // disambiguation behavior matching python-dateutil exactly.
-  ['dst-la-spring-daily', 'DST: spring-forward gap at 02:30 uses dateutil-specific disambiguation'],
-  ['dst-la-fall-daily', 'DST: fall-back fold at 01:30 - disambiguation may differ'],
-  ['dst-la-fall-hourly', 'DST: HOURLY across fall-back fold - UTC-based iteration needed'],
-  ['dst-berlin-spring-daily', 'DST: spring-forward gap at 02:00 - disambiguation may differ'],
-  ['dst-berlin-fall-daily', 'DST: fall-back fold at 02:30 - disambiguation may differ'],
-  ['dst-berlin-fall-hourly', 'DST: HOURLY across fall-back fold'],
-  ['dst-lord-howe-spring-daily', 'DST: 30-minute DST shift - non-standard offset handling'],
-  ['dst-lord-howe-fall-daily', 'DST: 30-minute DST shift - non-standard offset handling'],
-  ['dst-apia-spring-daily', 'DST: Pacific/Apia DST crossing'],
-  ['dst-apia-weekly', 'DST: Pacific/Apia DST crossing'],
-  ['dst-la-spring-weekly', 'DST: spring-forward crossing in weekly occurrence'],
-  ['dst-berlin-spring-weekly', 'DST: spring-forward crossing in weekly occurrence'],
+  // Spring-forward GAP cases: dateutil keeps the nonexistent wall-clock time
+  // with the pre-gap offset (fold=0 behaviour). Temporal shifts the wall-clock
+  // forward to the first valid post-gap instant. Same epoch, different string.
+  [
+    'dst-la-spring-daily',
+    'GAP: 02:30 in LA spring-forward gap; dateutil gives 02:30-08:00 (pre-gap offset, invalid instant); Temporal normalises to 03:30-07:00 (same epoch ms, valid instant)',
+  ],
+  [
+    'dst-berlin-spring-daily',
+    'GAP: 02:00 in Berlin spring-forward gap; dateutil gives 02:00+01:00 (pre-gap, invalid); Temporal normalises to 03:00+02:00 (same epoch)',
+  ],
+  [
+    'dst-lord-howe-spring-daily',
+    'GAP: 02:00 in Lord Howe 30-min spring-forward gap; dateutil gives 02:00+10:30 (pre-gap, invalid); Temporal normalises to 02:30+11:00 (same epoch)',
+  ],
 ])
 
 // ---------------------------------------------------------------------------

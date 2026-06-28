@@ -2,11 +2,11 @@
   "version": "1",
   "oracleVersion": "python-dateutil 2.9.0.post0",
   "generatedAt": "2026-06-28T00:00:00.000Z",
-  "totalCases": 161,
+  "totalCases": 169,
   "cases": [
     {
       "id": "rfc-daily-count-10",
-      "label": "RFC \u00a73.8.5.3: daily for 10 occurrences",
+      "label": "RFC §3.8.5.3: daily for 10 occurrences",
       "rrule": "FREQ=DAILY;COUNT=10",
       "dtstart": "1997-09-02T09:00:00",
       "tzid": null,
@@ -26,7 +26,7 @@
     },
     {
       "id": "rfc-daily-until-19971224",
-      "label": "RFC \u00a73.8.5.3: daily until December 24, 1997",
+      "label": "RFC §3.8.5.3: daily until December 24, 1997",
       "rrule": "FREQ=DAILY;UNTIL=19971224T000000Z",
       "dtstart": "1997-09-02T09:00:00Z",
       "tzid": null,
@@ -66,7 +66,7 @@
     },
     {
       "id": "rfc-daily-interval-2",
-      "label": "RFC \u00a73.8.5.3: every other day (first 10)",
+      "label": "RFC §3.8.5.3: every other day (first 10)",
       "rrule": "FREQ=DAILY;INTERVAL=2",
       "dtstart": "1997-09-02T09:00:00",
       "tzid": null,
@@ -86,7 +86,7 @@
     },
     {
       "id": "rfc-daily-interval-10-count-5",
-      "label": "RFC \u00a73.8.5.3: every 10 days, 5 occurrences",
+      "label": "RFC §3.8.5.3: every 10 days, 5 occurrences",
       "rrule": "FREQ=DAILY;INTERVAL=10;COUNT=5",
       "dtstart": "1997-09-02T09:00:00",
       "tzid": null,
@@ -101,7 +101,7 @@
     },
     {
       "id": "rfc-weekly-count-10",
-      "label": "RFC \u00a73.8.5.3: weekly for 10 occurrences",
+      "label": "RFC §3.8.5.3: weekly for 10 occurrences",
       "rrule": "FREQ=WEEKLY;COUNT=10",
       "dtstart": "1997-09-02T09:00:00",
       "tzid": null,
@@ -121,7 +121,7 @@
     },
     {
       "id": "rfc-weekly-until-19971224",
-      "label": "RFC \u00a73.8.5.3: weekly until December 24, 1997",
+      "label": "RFC §3.8.5.3: weekly until December 24, 1997",
       "rrule": "FREQ=WEEKLY;UNTIL=19971224T000000Z",
       "dtstart": "1997-09-02T09:00:00Z",
       "tzid": null,
@@ -148,7 +148,7 @@
     },
     {
       "id": "rfc-weekly-interval-2",
-      "label": "RFC \u00a73.8.5.3: every other week (first 10)",
+      "label": "RFC §3.8.5.3: every other week (first 10)",
       "rrule": "FREQ=WEEKLY;INTERVAL=2;WKST=SU",
       "dtstart": "1997-09-02T09:00:00",
       "tzid": null,
@@ -168,7 +168,7 @@
     },
     {
       "id": "rfc-weekly-tu-th-until",
-      "label": "RFC \u00a73.8.5.3: weekly TU+TH until Oct 7, 1997",
+      "label": "RFC §3.8.5.3: weekly TU+TH until Oct 7, 1997",
       "rrule": "FREQ=WEEKLY;UNTIL=19971007T000000Z;WKST=SU;BYDAY=TU,TH",
       "dtstart": "1997-09-02T09:00:00Z",
       "tzid": null,
@@ -188,7 +188,7 @@
     },
     {
       "id": "rfc-weekly-interval-2-mo-we-fr",
-      "label": "RFC \u00a73.8.5.3: every other week MO+WE+FR, 8 occurrences",
+      "label": "RFC §3.8.5.3: every other week MO+WE+FR, 8 occurrences",
       "rrule": "FREQ=WEEKLY;INTERVAL=2;COUNT=8;WKST=SU;BYDAY=MO,WE,FR",
       "dtstart": "1997-09-03T09:00:00",
       "tzid": null,
@@ -206,7 +206,7 @@
     },
     {
       "id": "rfc-monthly-1fr-count-10",
-      "label": "RFC \u00a73.8.5.3: monthly on 1st Friday, 10 occurrences",
+      "label": "RFC §3.8.5.3: monthly on 1st Friday, 10 occurrences",
       "rrule": "FREQ=MONTHLY;COUNT=10;BYDAY=1FR",
       "dtstart": "1997-09-05T09:00:00",
       "tzid": null,
@@ -226,7 +226,7 @@
     },
     {
       "id": "rfc-monthly-bymonthday-1-neg1",
-      "label": "RFC \u00a73.8.5.3: monthly on 1st and last day, 10 occurrences",
+      "label": "RFC §3.8.5.3: monthly on 1st and last day, 10 occurrences",
       "rrule": "FREQ=MONTHLY;COUNT=10;BYMONTHDAY=1,-1",
       "dtstart": "1997-09-30T09:00:00Z",
       "tzid": null,
@@ -246,7 +246,7 @@
     },
     {
       "id": "rfc-monthly-interval-18-bymonthday",
-      "label": "RFC \u00a73.8.5.3: every 18 months, days 10-15, 10 occurrences",
+      "label": "RFC §3.8.5.3: every 18 months, days 10-15, 10 occurrences",
       "rrule": "FREQ=MONTHLY;INTERVAL=18;COUNT=10;BYMONTHDAY=10,11,12,13,14,15",
       "dtstart": "1997-09-10T09:00:00Z",
       "tzid": null,
@@ -266,7 +266,7 @@
     },
     {
       "id": "rfc-monthly-interval-2-byday-tu",
-      "label": "RFC \u00a73.8.5.3: every other month on Tuesdays, 10 occurrences",
+      "label": "RFC §3.8.5.3: every other month on Tuesdays, 10 occurrences",
       "rrule": "FREQ=MONTHLY;INTERVAL=2;COUNT=10;BYDAY=TU",
       "dtstart": "1997-09-02T09:00:00Z",
       "tzid": null,
@@ -286,7 +286,7 @@
     },
     {
       "id": "rfc-monthly-bysetpos-neg1-th",
-      "label": "RFC \u00a73.8.5.3: last Thursday of month, 10 occurrences",
+      "label": "RFC §3.8.5.3: last Thursday of month, 10 occurrences",
       "rrule": "FREQ=MONTHLY;COUNT=10;BYDAY=TH;BYSETPOS=-1",
       "dtstart": "1997-09-29T09:00:00Z",
       "tzid": null,
@@ -306,7 +306,7 @@
     },
     {
       "id": "rfc-monthly-fr-bymonthday-13",
-      "label": "RFC \u00a73.8.5.3: Friday the 13th, 10 occurrences",
+      "label": "RFC §3.8.5.3: Friday the 13th, 10 occurrences",
       "rrule": "FREQ=MONTHLY;COUNT=10;BYDAY=FR;BYMONTHDAY=13",
       "dtstart": "1997-09-02T09:00:00Z",
       "tzid": null,
@@ -326,7 +326,7 @@
     },
     {
       "id": "rfc-monthly-sa-after-first-su",
-      "label": "RFC \u00a73.8.5.3: first Saturday following first Sunday, 10 occurrences",
+      "label": "RFC §3.8.5.3: first Saturday following first Sunday, 10 occurrences",
       "rrule": "FREQ=MONTHLY;COUNT=10;BYDAY=SA;BYMONTHDAY=7,8,9,10,11,12,13",
       "dtstart": "1997-09-13T09:00:00Z",
       "tzid": null,
@@ -346,7 +346,7 @@
     },
     {
       "id": "rfc-monthly-neg2-mo",
-      "label": "RFC \u00a73.8.5.3: second-to-last Monday of month, 6 occurrences",
+      "label": "RFC §3.8.5.3: second-to-last Monday of month, 6 occurrences",
       "rrule": "FREQ=MONTHLY;COUNT=6;BYDAY=-2MO",
       "dtstart": "1997-09-22T09:00:00Z",
       "tzid": null,
@@ -362,7 +362,7 @@
     },
     {
       "id": "rfc-monthly-bysetpos-3-tu-we-th",
-      "label": "RFC \u00a73.8.5.3: 3rd TU/WE/TH in month, 3 months",
+      "label": "RFC §3.8.5.3: 3rd TU/WE/TH in month, 3 months",
       "rrule": "FREQ=MONTHLY;COUNT=3;BYDAY=TU,WE,TH;BYSETPOS=3",
       "dtstart": "1997-09-04T09:00:00Z",
       "tzid": null,
@@ -375,7 +375,7 @@
     },
     {
       "id": "rfc-monthly-bysetpos-neg2-weekdays",
-      "label": "RFC \u00a73.8.5.3: second-to-last weekday, 7 months",
+      "label": "RFC §3.8.5.3: second-to-last weekday, 7 months",
       "rrule": "FREQ=MONTHLY;COUNT=7;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-2",
       "dtstart": "1997-09-29T09:00:00Z",
       "tzid": null,
@@ -392,7 +392,7 @@
     },
     {
       "id": "rfc-yearly-bymonth-6-7",
-      "label": "RFC \u00a73.8.5.3: yearly June+July, 10 occurrences",
+      "label": "RFC §3.8.5.3: yearly June+July, 10 occurrences",
       "rrule": "FREQ=YEARLY;COUNT=10;BYMONTH=6,7",
       "dtstart": "1997-06-10T09:00:00Z",
       "tzid": null,
@@ -412,7 +412,7 @@
     },
     {
       "id": "rfc-yearly-interval-2-bymonth-1-2-3",
-      "label": "RFC \u00a73.8.5.3: every other year Jan+Feb+Mar, 10 occurrences",
+      "label": "RFC §3.8.5.3: every other year Jan+Feb+Mar, 10 occurrences",
       "rrule": "FREQ=YEARLY;INTERVAL=2;COUNT=10;BYMONTH=1,2,3",
       "dtstart": "1997-03-10T09:00:00Z",
       "tzid": null,
@@ -432,7 +432,7 @@
     },
     {
       "id": "rfc-yearly-interval-3-byyearday",
-      "label": "RFC \u00a73.8.5.3: every 3rd year days 1,100,200 \u2014 10 occurrences",
+      "label": "RFC §3.8.5.3: every 3rd year days 1,100,200 — 10 occurrences",
       "rrule": "FREQ=YEARLY;INTERVAL=3;COUNT=10;BYYEARDAY=1,100,200",
       "dtstart": "1997-01-01T09:00:00Z",
       "tzid": null,
@@ -452,7 +452,7 @@
     },
     {
       "id": "rfc-yearly-20mo",
-      "label": "RFC \u00a73.8.5.3: every 20th Monday of the year, 10 occurrences",
+      "label": "RFC §3.8.5.3: every 20th Monday of the year, 10 occurrences",
       "rrule": "FREQ=YEARLY;COUNT=10;BYDAY=20MO",
       "dtstart": "1997-05-19T09:00:00Z",
       "tzid": null,
@@ -472,7 +472,7 @@
     },
     {
       "id": "rfc-yearly-byweekno-20-mo",
-      "label": "RFC \u00a73.8.5.3: Monday of week 20, 10 occurrences",
+      "label": "RFC §3.8.5.3: Monday of week 20, 10 occurrences",
       "rrule": "FREQ=YEARLY;COUNT=10;BYWEEKNO=20;BYDAY=MO",
       "dtstart": "1997-05-12T09:00:00Z",
       "tzid": null,
@@ -492,7 +492,7 @@
     },
     {
       "id": "rfc-yearly-bymonth-3-byday-th",
-      "label": "RFC \u00a73.8.5.3: every Thursday in March, 10 occurrences",
+      "label": "RFC §3.8.5.3: every Thursday in March, 10 occurrences",
       "rrule": "FREQ=YEARLY;COUNT=10;BYMONTH=3;BYDAY=TH",
       "dtstart": "1997-03-13T09:00:00Z",
       "tzid": null,
@@ -512,7 +512,7 @@
     },
     {
       "id": "rfc-yearly-election-day",
-      "label": "RFC \u00a73.8.5.3: US presidential election day, 10 occurrences",
+      "label": "RFC §3.8.5.3: US presidential election day, 10 occurrences",
       "rrule": "FREQ=YEARLY;INTERVAL=4;COUNT=10;BYMONTH=11;BYDAY=TU;BYMONTHDAY=2,3,4,5,6,7,8",
       "dtstart": "1996-11-05T09:00:00Z",
       "tzid": null,
@@ -532,7 +532,7 @@
     },
     {
       "id": "rfc-yearly-every-day-january",
-      "label": "RFC \u00a73.8.5.3: every day in January (3 years)",
+      "label": "RFC §3.8.5.3: every day in January (3 years)",
       "rrule": "FREQ=YEARLY;UNTIL=20000131T140000Z;BYMONTH=1;BYDAY=SU,MO,TU,WE,TH,FR,SA",
       "dtstart": "1998-01-01T09:00:00Z",
       "tzid": null,
@@ -572,7 +572,7 @@
     },
     {
       "id": "rfc-hourly-interval-3-count-3",
-      "label": "RFC \u00a73.8.5.3: every 3 hours, 3 occurrences",
+      "label": "RFC §3.8.5.3: every 3 hours, 3 occurrences",
       "rrule": "FREQ=HOURLY;INTERVAL=3;COUNT=3",
       "dtstart": "1997-09-02T09:00:00Z",
       "tzid": null,
@@ -585,7 +585,7 @@
     },
     {
       "id": "rfc-minutely-interval-15-count-6",
-      "label": "RFC \u00a73.8.5.3: every 15 minutes, 6 occurrences",
+      "label": "RFC §3.8.5.3: every 15 minutes, 6 occurrences",
       "rrule": "FREQ=MINUTELY;INTERVAL=15;COUNT=6",
       "dtstart": "1997-09-02T09:00:00Z",
       "tzid": null,
@@ -601,7 +601,7 @@
     },
     {
       "id": "rfc-minutely-interval-90-count-4",
-      "label": "RFC \u00a73.8.5.3: every 90 minutes, 4 occurrences",
+      "label": "RFC §3.8.5.3: every 90 minutes, 4 occurrences",
       "rrule": "FREQ=MINUTELY;INTERVAL=90;COUNT=4",
       "dtstart": "1997-09-02T09:00:00Z",
       "tzid": null,
@@ -615,7 +615,7 @@
     },
     {
       "id": "rfc-daily-byhour-byminute",
-      "label": "RFC \u00a73.8.5.3: daily at :00,:20,:40 past hours 9-16 (first 10)",
+      "label": "RFC §3.8.5.3: daily at :00,:20,:40 past hours 9-16 (first 10)",
       "rrule": "FREQ=DAILY;BYHOUR=9,10,11,12,13,14,15,16;BYMINUTE=0,20,40",
       "dtstart": "1997-09-02T09:00:00Z",
       "tzid": null,
@@ -2767,6 +2767,128 @@
         "2038-11-02T09:00:00Z",
         "2049-11-02T09:00:00Z",
         "2055-11-02T09:00:00Z"
+      ]
+    },
+    {
+      "id": "dst-la-fall-monthly",
+      "label": "DST: America/Los_Angeles fall-back 2024, monthly at 01:30 crossing fold",
+      "rrule": "FREQ=MONTHLY;COUNT=5",
+      "dtstart": "2024-10-03T01:30:00",
+      "tzid": "America/Los_Angeles",
+      "count": 5,
+      "expectedOccurrences": [
+        "2024-10-03T01:30:00-07:00",
+        "2024-11-03T01:30:00-07:00",
+        "2024-12-03T01:30:00-08:00",
+        "2025-01-03T01:30:00-08:00",
+        "2025-02-03T01:30:00-08:00"
+      ]
+    },
+    {
+      "id": "dst-la-fall-hourly-fold-direct",
+      "label": "DST: America/Los_Angeles fall-back 2024, hourly starting in fold window",
+      "rrule": "FREQ=HOURLY;COUNT=6",
+      "dtstart": "2024-11-03T00:30:00",
+      "tzid": "America/Los_Angeles",
+      "count": 6,
+      "expectedOccurrences": [
+        "2024-11-03T00:30:00-07:00",
+        "2024-11-03T01:30:00-07:00",
+        "2024-11-03T02:30:00-08:00",
+        "2024-11-03T03:30:00-08:00",
+        "2024-11-03T04:30:00-08:00",
+        "2024-11-03T05:30:00-08:00"
+      ]
+    },
+    {
+      "id": "dst-berlin-fall-monthly",
+      "label": "DST: Europe/Berlin fall-back 2024, monthly at 02:30 crossing fold",
+      "rrule": "FREQ=MONTHLY;COUNT=5",
+      "dtstart": "2024-09-27T02:30:00",
+      "tzid": "Europe/Berlin",
+      "count": 5,
+      "expectedOccurrences": [
+        "2024-09-27T02:30:00+02:00",
+        "2024-10-27T02:30:00+02:00",
+        "2024-11-27T02:30:00+01:00",
+        "2024-12-27T02:30:00+01:00",
+        "2025-01-27T02:30:00+01:00"
+      ]
+    },
+    {
+      "id": "dst-berlin-fall-hourly-fold",
+      "label": "DST: Europe/Berlin fall-back 2024, hourly directly through fold",
+      "rrule": "FREQ=HOURLY;COUNT=6",
+      "dtstart": "2024-10-27T01:30:00",
+      "tzid": "Europe/Berlin",
+      "count": 6,
+      "expectedOccurrences": [
+        "2024-10-27T01:30:00+02:00",
+        "2024-10-27T02:30:00+02:00",
+        "2024-10-27T03:30:00+01:00",
+        "2024-10-27T04:30:00+01:00",
+        "2024-10-27T05:30:00+01:00",
+        "2024-10-27T06:30:00+01:00"
+      ]
+    },
+    {
+      "id": "dst-lord-howe-fall-hourly",
+      "label": "DST: Australia/Lord_Howe fall-back 2024 (30-min shift), hourly through fold",
+      "rrule": "FREQ=HOURLY;COUNT=5",
+      "dtstart": "2024-04-07T01:00:00",
+      "tzid": "Australia/Lord_Howe",
+      "count": 5,
+      "expectedOccurrences": [
+        "2024-04-07T01:00:00+11:00",
+        "2024-04-07T02:00:00+10:30",
+        "2024-04-07T03:00:00+10:30",
+        "2024-04-07T04:00:00+10:30",
+        "2024-04-07T05:00:00+10:30"
+      ]
+    },
+    {
+      "id": "dst-la-spring-non-gap-daily",
+      "label": "DST: America/Los_Angeles spring-forward 2024, daily at 10:00 (not in gap)",
+      "rrule": "FREQ=DAILY;COUNT=5",
+      "dtstart": "2024-03-09T10:00:00",
+      "tzid": "America/Los_Angeles",
+      "count": 5,
+      "expectedOccurrences": [
+        "2024-03-09T10:00:00-08:00",
+        "2024-03-10T10:00:00-07:00",
+        "2024-03-11T10:00:00-07:00",
+        "2024-03-12T10:00:00-07:00",
+        "2024-03-13T10:00:00-07:00"
+      ]
+    },
+    {
+      "id": "dst-berlin-spring-non-gap-daily",
+      "label": "DST: Europe/Berlin spring-forward 2024, daily at 10:00 (not in gap)",
+      "rrule": "FREQ=DAILY;COUNT=5",
+      "dtstart": "2024-03-30T10:00:00",
+      "tzid": "Europe/Berlin",
+      "count": 5,
+      "expectedOccurrences": [
+        "2024-03-30T10:00:00+01:00",
+        "2024-03-31T10:00:00+02:00",
+        "2024-04-01T10:00:00+02:00",
+        "2024-04-02T10:00:00+02:00",
+        "2024-04-03T10:00:00+02:00"
+      ]
+    },
+    {
+      "id": "dst-lord-howe-spring-non-gap-daily",
+      "label": "DST: Australia/Lord_Howe spring-forward 2024, daily at 10:00 (not in gap)",
+      "rrule": "FREQ=DAILY;COUNT=5",
+      "dtstart": "2024-10-05T10:00:00",
+      "tzid": "Australia/Lord_Howe",
+      "count": 5,
+      "expectedOccurrences": [
+        "2024-10-05T10:00:00+10:30",
+        "2024-10-06T10:00:00+11:00",
+        "2024-10-07T10:00:00+11:00",
+        "2024-10-08T10:00:00+11:00",
+        "2024-10-09T10:00:00+11:00"
       ]
     }
   ]

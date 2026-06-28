@@ -66,12 +66,39 @@ const countArb = fc.integer({ min: 3, max: 10 })
 const wkstArb = fc.option(weekdayArb, { nil: undefined })
 
 // Fixed safe dtstart values (floating, UTC, zoned) for generated cases.
-// Zoned cases use a date in January to avoid DST ambiguity in the BY* generator.
+// Zoned cases include both safe non-DST dates (January) and DST-transition
+// dates. DST variants use safe times (not in spring-forward gaps) so that
+// fall-back fold handling and post-gap spring-forward behaviour are exercised
+// without risking the known spring-forward-gap limitation (dateutil fold=0
+// produces pre-gap offsets that Temporal cannot replicate).
 const dtstartVariants = [
   { dtstart: '1997-09-02T09:00:00', tzid: null as null },
   { dtstart: '1997-09-02T09:00:00Z', tzid: null as null },
   { dtstart: '2024-01-15T10:00:00', tzid: 'America/New_York' },
   { dtstart: '2024-01-15T10:00:00', tzid: 'Europe/Berlin' },
+  // America/Los_Angeles DST variants:
+  //   Fall-back 2024: Nov 3 (fold 01:00-02:00 PDT/PST)
+  { dtstart: '2024-11-02T01:30:00', tzid: 'America/Los_Angeles' },
+  { dtstart: '2024-11-03T00:30:00', tzid: 'America/Los_Angeles' },
+  //   Spring-forward 2024: Mar 10 (gap 02:00-03:00 PST). Use post-gap time
+  //   so that daily occurrences at 10:00 never land in the gap.
+  { dtstart: '2024-03-10T10:00:00', tzid: 'America/Los_Angeles' },
+  // Europe/Berlin DST variants:
+  //   Fall-back 2024: Oct 27 (fold 02:00-03:00 CEST/CET)
+  { dtstart: '2024-10-26T02:30:00', tzid: 'Europe/Berlin' },
+  { dtstart: '2024-10-27T00:30:00', tzid: 'Europe/Berlin' },
+  //   Spring-forward 2024: Mar 31 (gap 02:00-03:00 CET). Use post-gap time.
+  { dtstart: '2024-03-31T10:00:00', tzid: 'Europe/Berlin' },
+  // Australia/Lord_Howe DST variants:
+  //   Fall-back 2024: Apr 7 (fold 01:30-02:00 LHDT/LHST, 30-min shift).
+  //   Use 10:00 so monthly/yearly occurrences never land in the spring-forward
+  //   gap (02:00-02:30 on Oct 6). 02:30 on Apr 7 is post-fold, also safe.
+  { dtstart: '2024-04-06T10:00:00', tzid: 'Australia/Lord_Howe' },
+  { dtstart: '2024-04-07T02:30:00', tzid: 'Australia/Lord_Howe' },
+  //   Spring-forward 2024: Oct 6 (gap 02:00-02:30, 30-min shift). Post-gap.
+  { dtstart: '2024-10-06T10:00:00', tzid: 'Australia/Lord_Howe' },
+  // Pacific/Apia (UTC+13, no DST in 2024, basic coverage)
+  { dtstart: '2024-09-27T10:00:00', tzid: 'Pacific/Apia' },
 ]
 const dtstartArb = fc.constantFrom(...dtstartVariants)
 
