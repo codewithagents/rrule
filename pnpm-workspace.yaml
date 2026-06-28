@@ -1,0 +1,33 @@
+packages:
+  - 'packages/*'
+
+catalog:
+  # TypeScript
+  typescript: ^6.0.3
+
+  # Test tooling
+  vitest: ^4.1.9
+  '@vitest/coverage-v8': ^4.1.9
+
+  # Property-based testing
+  fast-check: ^4.8.0
+
+  # Mutation testing
+  '@stryker-mutator/core': ^9.6.1
+  '@stryker-mutator/vitest-runner': ^9.6.1
+
+  # Formatter
+  prettier: ^3.8.4
+
+  # Node types
+  '@types/node': ^26.0.0
+
+  # ESLint
+  eslint: ^10.5.0
+  '@typescript-eslint/eslint-plugin': ^8.61.1
+  '@typescript-eslint/parser': ^8.61.1
+
+  # Temporal polyfill for tests on Node < 26
+  temporal-polyfill: ^1.0.1
+
+packageManager: pnpm@10.30.3

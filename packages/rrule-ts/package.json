@@ -1,0 +1,80 @@
+{
+  "name": "rrule-ts",
+  "version": "0.1.0",
+  "description": "RFC 5545 RRULE parser, validator, stringifier, and expander. Temporal-native, zero runtime dependencies.",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./text": {
+      "types": "./dist/text/index.d.ts",
+      "import": "./dist/text/index.js"
+    },
+    "./locales/en": {
+      "types": "./dist/locales/en.d.ts",
+      "import": "./dist/locales/en.js"
+    },
+    "./locales/de": {
+      "types": "./dist/locales/de.d.ts",
+      "import": "./dist/locales/de.js"
+    }
+  },
+  "sideEffects": false,
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "test:mutation": "stryker run",
+    "lint": "tsc --noEmit"
+  },
+  "keywords": [
+    "rrule",
+    "recurrence",
+    "rfc5545",
+    "rfc-5545",
+    "ical",
+    "icalendar",
+    "calendar",
+    "temporal",
+    "recurring",
+    "schedule",
+    "dtstart",
+    "byday"
+  ],
+  "funding": "https://github.com/sponsors/codewithagents",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/codewithagents/rrule"
+  },
+  "homepage": "https://github.com/codewithagents/rrule#readme",
+  "bugs": {
+    "url": "https://github.com/codewithagents/rrule/issues"
+  },
+  "author": "CodeWithAgents (https://codewithagents.de)",
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "@stryker-mutator/core": "catalog:",
+    "@stryker-mutator/vitest-runner": "catalog:",
+    "@types/node": "catalog:",
+    "@vitest/coverage-v8": "catalog:",
+    "fast-check": "catalog:",
+    "temporal-polyfill": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
