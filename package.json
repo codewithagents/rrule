@@ -10,12 +10,16 @@
     "lint": "pnpm -r run lint",
     "lint:eslint": "eslint .",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "fallow": "fallow",
+    "fallow:audit": "fallow audit",
+    "fallow:watch": "fallow watch"
   },
   "devDependencies": {
     "@typescript-eslint/eslint-plugin": "catalog:",
     "@typescript-eslint/parser": "catalog:",
     "eslint": "catalog:",
+    "fallow": "^2.101.0",
     "prettier": "catalog:",
     "typescript": "catalog:"
   }
