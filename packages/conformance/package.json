@@ -1,0 +1,21 @@
+{
+  "name": "rrule-ts-conformance",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Differential conformance harness for rrule-ts vs python-dateutil.",
+  "type": "module",
+  "scripts": {
+    "gen:corpus": "node --import tsx/esm src/gen-corpus.ts",
+    "test": "vitest run",
+    "lint": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "fast-check": "catalog:",
+    "rrule-ts": "workspace:*",
+    "temporal-polyfill": "catalog:",
+    "tsx": "^4.19.4",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
