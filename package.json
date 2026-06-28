@@ -11,6 +11,7 @@
     "lint:eslint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
+    "fuzz": "pnpm --filter rrule-ts-conformance fuzz",
     "fallow": "fallow",
     "fallow:audit": "fallow audit",
     "fallow:watch": "fallow watch"
