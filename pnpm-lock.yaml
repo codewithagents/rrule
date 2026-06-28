@@ -34,7 +34,7 @@ catalogs:
       specifier: ^3.8.4
       version: 3.9.1
     temporal-polyfill:
-      specifier: '*'
+      specifier: ^1.0.1
       version: 1.0.1
     typescript:
       specifier: ^6.0.3

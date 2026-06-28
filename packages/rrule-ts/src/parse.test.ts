@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import * as fc from 'fast-check'
 import { parse } from './parse.js'
 import { stringify } from './stringify.js'
+import { getTemporal } from './temporal.js'
 import type { RRuleOptions } from './types.js'
 
 // ---------------------------------------------------------------------------
@@ -405,5 +406,104 @@ describe('parse + stringify round-trip (property tests)', () => {
     if (r2.ok) {
       expect(r2.value.dtstart).toEqual(r.value.dtstart)
     }
+  })
+
+  it('parse(stringify(x)) preserves DTSTART as PlainDate (property test)', () => {
+    const T = getTemporal()
+    // Arbitrary valid calendar dates in the range 2000-2099
+    const plainDateArb = fc
+      .record({
+        year: fc.integer({ min: 2000, max: 2099 }),
+        month: fc.integer({ min: 1, max: 12 }),
+        day: fc.integer({ min: 1, max: 28 }), // day <=28 is valid in every month
+      })
+      .map(({ year, month, day }) => T.PlainDate.from({ year, month, day }))
+
+    fc.assert(
+      fc.property(plainDateArb, (dtstart) => {
+        const opts: RRuleOptions = { freq: 'WEEKLY', dtstart }
+        const str = stringify(opts)
+        const result = parse(str)
+        if (!result.ok) {
+          throw new Error(`parse failed on "${str}": ${result.error}`)
+        }
+        expect(result.value.dtstart).toEqual(dtstart)
+      }),
+      { numRuns: 100 }
+    )
+  })
+
+  it('parse(stringify(x)) preserves DTSTART as UTC Instant (property test)', () => {
+    const T = getTemporal()
+    // Arbitrary epoch milliseconds, whole-second granularity, years 2000-2099
+    const instantArb = fc
+      .integer({ min: 946684800, max: 4102444800 }) // seconds: 2000-01-01 to 2100-01-01
+      .map((secs) => T.Instant.fromEpochMilliseconds(secs * 1000))
+
+    fc.assert(
+      fc.property(instantArb, (dtstart) => {
+        const opts: RRuleOptions = { freq: 'DAILY', dtstart }
+        const str = stringify(opts)
+        const result = parse(str)
+        if (!result.ok) {
+          throw new Error(`parse failed on "${str}": ${result.error}`)
+        }
+        expect(result.value.dtstart).toEqual(dtstart)
+      }),
+      { numRuns: 100 }
+    )
+  })
+
+  it('parse(stringify(x)) preserves DTSTART;TZID= as ZonedDateTime (property test)', () => {
+    const T = getTemporal()
+    const tzidArb = fc.constantFrom('Europe/Berlin', 'America/New_York', 'Asia/Tokyo', 'UTC')
+    // Constrain date/time to avoid DST edge cases: use midday, years 2000-2099
+    const zdtArb = fc
+      .record({
+        year: fc.integer({ min: 2000, max: 2099 }),
+        month: fc.integer({ min: 1, max: 12 }),
+        day: fc.integer({ min: 1, max: 28 }),
+        tzid: tzidArb,
+      })
+      .map(({ year, month, day, tzid }) =>
+        T.ZonedDateTime.from({ year, month, day, hour: 12, minute: 0, second: 0, timeZone: tzid })
+      )
+
+    fc.assert(
+      fc.property(zdtArb, (dtstart) => {
+        const opts: RRuleOptions = { freq: 'MONTHLY', dtstart, tzid: dtstart.timeZoneId }
+        const str = stringify(opts)
+        const result = parse(str)
+        if (!result.ok) {
+          throw new Error(`parse failed on "${str}": ${result.error}`)
+        }
+        // Verify structural equivalence (epochMilliseconds is the canonical identity)
+        expect((result.value.dtstart as typeof dtstart).epochMilliseconds).toBe(
+          dtstart.epochMilliseconds
+        )
+        expect(result.value.tzid).toBe(dtstart.timeZoneId)
+      }),
+      { numRuns: 100 }
+    )
+  })
+
+  it('parse(stringify(x)) preserves UNTIL as UTC Instant (property test)', () => {
+    const T = getTemporal()
+    const instantArb = fc
+      .integer({ min: 946684800, max: 4102444800 })
+      .map((secs) => T.Instant.fromEpochMilliseconds(secs * 1000))
+
+    fc.assert(
+      fc.property(instantArb, (until) => {
+        const opts: RRuleOptions = { freq: 'DAILY', until }
+        const str = stringify(opts)
+        const result = parse(str)
+        if (!result.ok) {
+          throw new Error(`parse failed on "${str}": ${result.error}`)
+        }
+        expect(result.value.until).toEqual(until)
+      }),
+      { numRuns: 100 }
+    )
   })
 })

@@ -10,7 +10,8 @@
     "!src/**/*.test.ts",
     "!src/**/*.d.ts",
     "!src/text/**/*.ts",
-    "!src/locales/**/*.ts"
+    "!src/locales/**/*.ts",
+    "!src/index.ts"
   ],
   "coverageAnalysis": "perTest",
   "thresholds": {

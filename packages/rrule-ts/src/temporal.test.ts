@@ -27,25 +27,23 @@ describe('getTemporal', () => {
 })
 
 describe('setTemporal', () => {
-  let originalInjected: typeof Temporal | undefined
+  // Capture the live Temporal implementation before any test runs so afterEach
+  // can always restore it. Must be assigned before beforeEach, not inside it.
+  let savedImpl: typeof Temporal
 
   beforeEach(() => {
-    // Capture the injected state so we can restore it
-    originalInjected = undefined
+    // Always snapshot the current live implementation before the test touches it.
+    savedImpl = getTemporal()
   })
 
   afterEach(() => {
-    // Re-inject so the polyfill is available for subsequent tests on Node 22
-    if (originalInjected !== undefined) {
-      setTemporal(originalInjected)
-    }
+    // Restore the saved implementation so the polyfill remains available for
+    // subsequent tests on Node 22 even if a test cleared the injection.
+    setTemporal(savedImpl)
   })
 
   it('allows injecting a custom implementation', () => {
     const T = getTemporal()
-    // Store so afterEach can restore
-    originalInjected = T
-
     const fake = {
       ...T,
       // Override Instant.from as a canary to verify injection was used
@@ -63,13 +61,11 @@ describe('setTemporal', () => {
 
   it('throws with a descriptive message when Temporal is unavailable', () => {
     // Only testable on Node 22 where we can clear the injection.
-    // On Node 26 native Temporal is always present.
+    // On Node 26 native Temporal is always present and takes precedence.
     if ('Temporal' in globalThis) return
 
-    // Clear the injected implementation
+    // Clear the injected implementation; afterEach will restore savedImpl.
     setTemporal(undefined as unknown as typeof Temporal)
     expect(() => getTemporal()).toThrow(/Temporal is not available/)
-    // Restore so later tests work
-    originalInjected = getTemporal as unknown as typeof Temporal
   })
 })

@@ -4,7 +4,6 @@
 // output includes a DTSTART content line followed by the RRULE line so that
 // round-trip is guaranteed: parse(stringify(x)) deep-equals x for all valid x.
 
-import { getTemporal } from './temporal.js'
 import type { RRuleDtstart, RRuleOptions, RRuleUntil, Weekday, WeekdayNum } from './types.js'
 
 // ---------------------------------------------------------------------------
@@ -59,10 +58,7 @@ function formatPlainDateTime(dt: Temporal.PlainDateTime): string {
 
 /** Format an Instant as YYYYMMDDTHHmmssZ. */
 function formatInstant(inst: Temporal.Instant): string {
-  const T = getTemporal()
   const zdt = inst.toZonedDateTimeISO('UTC')
-  const T2 = T
-  void T2
   return (
     `${pad4(zdt.year)}${pad2(zdt.month)}${pad2(zdt.day)}` +
     `T${pad2(zdt.hour)}${pad2(zdt.minute)}${pad2(zdt.second)}Z`

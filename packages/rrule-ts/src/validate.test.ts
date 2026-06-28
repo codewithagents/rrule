@@ -88,16 +88,37 @@ describe('validate - happy path', () => {
     expect(validate(base({ bySecond: [0, 60] })).ok).toBe(true)
   })
 
-  it('accepts BYSETPOS with positive and negative values', () => {
-    expect(validate(base({ bySetPos: [1, -1, 366, -366] })).ok).toBe(true)
+  it('accepts BYSETPOS with positive and negative values when another BYxxx rule is present', () => {
+    // BYSETPOS requires at least one other BYxxx rule part (RFC 5545 §3.3.10).
+    expect(
+      validate(
+        base({
+          freq: 'MONTHLY',
+          bySetPos: [1, -1, 366, -366],
+          byDay: [{ ordinal: undefined, weekday: 'MO' }],
+        })
+      ).ok
+    ).toBe(true)
   })
 
-  it('accepts BYWEEKNO in range 1-53', () => {
+  it('accepts BYWEEKNO in range 1-53 with FREQ=YEARLY', () => {
     expect(validate(base({ freq: 'YEARLY', byWeekNo: [1, 53] })).ok).toBe(true)
   })
 
-  it('accepts BYYEARDAY in range 1-366', () => {
+  it('accepts BYYEARDAY in range 1-366 with FREQ=YEARLY', () => {
     expect(validate(base({ freq: 'YEARLY', byYearDay: [1, 366, -1, -366] })).ok).toBe(true)
+  })
+
+  it('accepts BYMONTHDAY on DAILY freq', () => {
+    expect(validate(base({ freq: 'DAILY', byMonthDay: [1, 15] })).ok).toBe(true)
+  })
+
+  it('accepts BYMONTHDAY on MONTHLY freq', () => {
+    expect(validate(base({ freq: 'MONTHLY', byMonthDay: [1, 15] })).ok).toBe(true)
+  })
+
+  it('accepts BYMONTHDAY on YEARLY freq', () => {
+    expect(validate(base({ freq: 'YEARLY', byMonthDay: [1, 15] })).ok).toBe(true)
   })
 
   it('accepts PlainDate UNTIL with PlainDate DTSTART', () => {
@@ -399,5 +420,121 @@ describe('validate - BY* range checks', () => {
     )
     expect(r.ok).toBe(false)
     if (!r.ok) expect(r.error.length).toBeGreaterThanOrEqual(2)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// RFC 5545 §3.3.10 Table 1: BYWEEKNO frequency restriction
+// ---------------------------------------------------------------------------
+
+describe('validate - BYWEEKNO_YEARLY_ONLY', () => {
+  it('rejects BYWEEKNO with FREQ=MONTHLY', () => {
+    const r = validate(base({ freq: 'MONTHLY', byWeekNo: [1] }))
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.error.some((e) => e.ruleId === 'BYWEEKNO_YEARLY_ONLY')).toBe(true)
+  })
+
+  it('rejects BYWEEKNO with FREQ=WEEKLY', () => {
+    const r = validate(base({ freq: 'WEEKLY', byWeekNo: [1] }))
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.error.some((e) => e.ruleId === 'BYWEEKNO_YEARLY_ONLY')).toBe(true)
+  })
+
+  it('rejects BYWEEKNO with FREQ=DAILY', () => {
+    const r = validate(base({ freq: 'DAILY', byWeekNo: [1] }))
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.error.some((e) => e.ruleId === 'BYWEEKNO_YEARLY_ONLY')).toBe(true)
+  })
+
+  it('accepts BYWEEKNO with FREQ=YEARLY', () => {
+    const r = validate(base({ freq: 'YEARLY', byWeekNo: [1, 10, 52] }))
+    expect(r.ok).toBe(true)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// RFC 5545 §3.3.10 Table 1: BYYEARDAY frequency restriction
+// ---------------------------------------------------------------------------
+
+describe('validate - BYYEARDAY_FREQ_RESTRICTION', () => {
+  it('rejects BYYEARDAY with FREQ=DAILY', () => {
+    const r = validate(base({ freq: 'DAILY', byYearDay: [100] }))
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.error.some((e) => e.ruleId === 'BYYEARDAY_FREQ_RESTRICTION')).toBe(true)
+  })
+
+  it('rejects BYYEARDAY with FREQ=WEEKLY', () => {
+    const r = validate(base({ freq: 'WEEKLY', byYearDay: [100] }))
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.error.some((e) => e.ruleId === 'BYYEARDAY_FREQ_RESTRICTION')).toBe(true)
+  })
+
+  it('rejects BYYEARDAY with FREQ=MONTHLY', () => {
+    const r = validate(base({ freq: 'MONTHLY', byYearDay: [100] }))
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.error.some((e) => e.ruleId === 'BYYEARDAY_FREQ_RESTRICTION')).toBe(true)
+  })
+
+  it('accepts BYYEARDAY with FREQ=YEARLY', () => {
+    const r = validate(base({ freq: 'YEARLY', byYearDay: [100, 200] }))
+    expect(r.ok).toBe(true)
+  })
+
+  it('accepts BYYEARDAY with FREQ=HOURLY', () => {
+    const r = validate(base({ freq: 'HOURLY', byYearDay: [100] }))
+    expect(r.ok).toBe(true)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// RFC 5545 §3.3.10 Table 1: BYMONTHDAY / FREQ=WEEKLY restriction
+// ---------------------------------------------------------------------------
+
+describe('validate - BYMONTHDAY_NO_WEEKLY', () => {
+  it('rejects BYMONTHDAY with FREQ=WEEKLY', () => {
+    const r = validate(base({ freq: 'WEEKLY', byMonthDay: [1] }))
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.error.some((e) => e.ruleId === 'BYMONTHDAY_NO_WEEKLY')).toBe(true)
+  })
+
+  it('accepts BYMONTHDAY with FREQ=DAILY', () => {
+    expect(validate(base({ freq: 'DAILY', byMonthDay: [15] })).ok).toBe(true)
+  })
+
+  it('accepts BYMONTHDAY with FREQ=MONTHLY', () => {
+    expect(validate(base({ freq: 'MONTHLY', byMonthDay: [15] })).ok).toBe(true)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// RFC 5545 §3.3.10: BYSETPOS requires another BYxxx rule
+// ---------------------------------------------------------------------------
+
+describe('validate - BYSETPOS_REQUIRES_BYRULE', () => {
+  it('rejects BYSETPOS without any other BYxxx rule', () => {
+    const r = validate(base({ freq: 'MONTHLY', bySetPos: [1] }))
+    expect(r.ok).toBe(false)
+    if (!r.ok) expect(r.error.some((e) => e.ruleId === 'BYSETPOS_REQUIRES_BYRULE')).toBe(true)
+  })
+
+  it('accepts BYSETPOS when BYDAY is also present', () => {
+    const r = validate(
+      base({
+        freq: 'MONTHLY',
+        bySetPos: [1],
+        byDay: [{ ordinal: undefined, weekday: 'MO' }],
+      })
+    )
+    expect(r.ok).toBe(true)
+  })
+
+  it('accepts BYSETPOS when BYMONTH is also present', () => {
+    const r = validate(base({ freq: 'YEARLY', bySetPos: [1], byMonth: [3] }))
+    expect(r.ok).toBe(true)
+  })
+
+  it('accepts BYSETPOS when BYHOUR is also present', () => {
+    const r = validate(base({ freq: 'DAILY', bySetPos: [1], byHour: [9] }))
+    expect(r.ok).toBe(true)
   })
 })

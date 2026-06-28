@@ -136,6 +136,80 @@ function checkBydayOrdinals(o: RRuleOptions, errors: ValidationError[]): void {
   }
 }
 
+/**
+ * RFC 5545 §3.3.10: BYWEEKNO MUST only be used with FREQ=YEARLY.
+ * "The BYWEEKNO rule part MUST NOT be specified when the FREQ rule part is
+ *  set to anything other than YEARLY."
+ */
+function checkByWeekNoFreq(o: RRuleOptions, errors: ValidationError[]): void {
+  if (o.byWeekNo !== undefined && o.freq !== 'YEARLY') {
+    errors.push({
+      field: 'BYWEEKNO',
+      ruleId: 'BYWEEKNO_YEARLY_ONLY',
+      message: `BYWEEKNO is only valid with FREQ=YEARLY; got FREQ=${o.freq}.`,
+    })
+  }
+}
+
+/**
+ * RFC 5545 §3.3.10: BYYEARDAY MUST NOT be used with DAILY, WEEKLY, or MONTHLY.
+ * "The BYYEARDAY rule part MUST NOT be used with a DAILY, WEEKLY, or MONTHLY
+ *  rule."
+ */
+function checkByYearDayFreq(o: RRuleOptions, errors: ValidationError[]): void {
+  if (
+    o.byYearDay !== undefined &&
+    (o.freq === 'DAILY' || o.freq === 'WEEKLY' || o.freq === 'MONTHLY')
+  ) {
+    errors.push({
+      field: 'BYYEARDAY',
+      ruleId: 'BYYEARDAY_FREQ_RESTRICTION',
+      message: `BYYEARDAY must not be used with FREQ=${o.freq} (only SECONDLY, MINUTELY, HOURLY, YEARLY are allowed).`,
+    })
+  }
+}
+
+/**
+ * RFC 5545 §3.3.10: BYMONTHDAY MUST NOT be used with FREQ=WEEKLY.
+ * "The BYMONTHDAY rule part MUST NOT be specified when the FREQ rule part is
+ *  set to WEEKLY."
+ */
+function checkByMonthDayFreq(o: RRuleOptions, errors: ValidationError[]): void {
+  if (o.byMonthDay !== undefined && o.freq === 'WEEKLY') {
+    errors.push({
+      field: 'BYMONTHDAY',
+      ruleId: 'BYMONTHDAY_NO_WEEKLY',
+      message: 'BYMONTHDAY must not be used with FREQ=WEEKLY.',
+    })
+  }
+}
+
+/**
+ * RFC 5545 §3.3.10: BYSETPOS MUST only be used in conjunction with another
+ * BYxxx rule part.
+ * "The BYSETPOS rule part MUST only be used in conjunction with another BYxxx
+ *  rule part."
+ */
+function checkBySetPosRequiresByRule(o: RRuleOptions, errors: ValidationError[]): void {
+  if (o.bySetPos === undefined) return
+  const hasOtherByRule =
+    o.bySecond !== undefined ||
+    o.byMinute !== undefined ||
+    o.byHour !== undefined ||
+    o.byDay !== undefined ||
+    o.byMonthDay !== undefined ||
+    o.byYearDay !== undefined ||
+    o.byWeekNo !== undefined ||
+    o.byMonth !== undefined
+  if (!hasOtherByRule) {
+    errors.push({
+      field: 'BYSETPOS',
+      ruleId: 'BYSETPOS_REQUIRES_BYRULE',
+      message: 'BYSETPOS must only be used in conjunction with another BYxxx rule part.',
+    })
+  }
+}
+
 /** Validate BY* integer list ranges. */
 function checkByListRanges(o: RRuleOptions, errors: ValidationError[]): void {
   const rangeCheck = (
@@ -190,6 +264,10 @@ function checkByListRanges(o: RRuleOptions, errors: ValidationError[]): void {
  * - COUNT >= 1
  * - UNTIL value type matches DTSTART value type (RFC 5545 §3.3.10)
  * - BYDAY ordinals only allowed for MONTHLY/YEARLY, not with BYWEEKNO
+ * - BYWEEKNO only valid with FREQ=YEARLY (RFC 5545 §3.3.10 Table 1)
+ * - BYYEARDAY not valid with DAILY, WEEKLY, MONTHLY (RFC 5545 §3.3.10 Table 1)
+ * - BYMONTHDAY not valid with FREQ=WEEKLY (RFC 5545 §3.3.10 Table 1)
+ * - BYSETPOS requires at least one other BYxxx rule (RFC 5545 §3.3.10)
  * - BY* value ranges (BYMONTH 1-12, BYMONTHDAY ±1-31, BYHOUR 0-23, etc.)
  */
 export function validate(options: RRuleOptions): Result<RRuleOptions, ValidationError[]> {
@@ -200,6 +278,10 @@ export function validate(options: RRuleOptions): Result<RRuleOptions, Validation
   checkCount(options, errors)
   checkUntilDtstartCompatibility(options, errors)
   checkBydayOrdinals(options, errors)
+  checkByWeekNoFreq(options, errors)
+  checkByYearDayFreq(options, errors)
+  checkByMonthDayFreq(options, errors)
+  checkBySetPosRequiresByRule(options, errors)
   checkByListRanges(options, errors)
 
   if (errors.length > 0) return err(errors)

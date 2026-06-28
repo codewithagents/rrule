@@ -10,7 +10,6 @@ export default defineConfig({
       include: [
         'src/temporal.ts',
         'src/result.ts',
-        'src/types.ts',
         'src/parse.ts',
         'src/stringify.ts',
         'src/validate.ts',

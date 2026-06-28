@@ -97,11 +97,16 @@ jobs:
     name: CI Gate
     needs:
       - changes
+      - ci
       - coverage
     if: always()
     runs-on: ubuntu-latest
     steps:
-      - name: Verify all Tier 2 jobs passed or were skipped
+      # The gate PASSES when every needed job is success or skipped.
+      # `ci` always runs (Node 22+26 matrix, Tier 1) so it must be success — skipped
+      # would mean it never ran, which is a gate failure.
+      # `coverage` is Tier 2 and may be skipped on docs-only PRs, which is fine.
+      - name: Verify all needed jobs passed or were legitimately skipped
         env:
           RESULTS: ${{ toJSON(needs) }}
         run: |
