@@ -1363,3 +1363,205 @@ describe('iterate() laziness', () => {
     expect(results).toHaveLength(3)
   })
 })
+
+// ---------------------------------------------------------------------------
+// RFC 5545 bug regression tests (found by differential fuzzer, seed 101+505).
+//
+// Each case is verified against the python-dateutil oracle. These exercise the
+// three classes of bugs fixed in expand.ts: BY* intersection, BYMONTH
+// restriction of BYYEARDAY, and BYWEEKNO/WKST anchoring.
+// ---------------------------------------------------------------------------
+
+describe('YEARLY BY* intersection and WKST regression cases', () => {
+  // -----------------------------------------------------------------------
+  // BYWEEKNO + WKST anchoring (gen-477, gen-567).
+  // The fix: wkstWeek1Start() anchors week 1 on WKST day (not always Monday).
+  // -----------------------------------------------------------------------
+  it('BYWEEKNO with WKST=TU: week 26 of 1998 starts Tuesday Jun 23 (not Mon Jun 22)', () => {
+    // FREQ=YEARLY;COUNT=5;INTERVAL=1;WKST=TU;BYWEEKNO=13,26;BYMONTH=9,7,6
+    const opts: RRuleOptions = {
+      freq: 'YEARLY',
+      count: 5,
+      interval: 1,
+      wkst: 'TU',
+      byWeekNo: [13, 26],
+      byMonth: [9, 7, 6],
+      dtstart: inst('1997-09-02T09:00:00Z'),
+    }
+    expect(strs(expand(opts))).toEqual([
+      '1998-06-23T09:00:00Z',
+      '1998-06-24T09:00:00Z',
+      '1998-06-25T09:00:00Z',
+      '1998-06-26T09:00:00Z',
+      '1998-06-27T09:00:00Z',
+    ])
+  })
+
+  it('BYWEEKNO with WKST=SA: week 49 of 1997 starts Saturday Dec 6 (not Mon Dec 1)', () => {
+    // FREQ=YEARLY;COUNT=10;INTERVAL=1;WKST=SA;BYDAY=MO,SU;BYWEEKNO=49
+    const opts: RRuleOptions = {
+      freq: 'YEARLY',
+      count: 10,
+      interval: 1,
+      wkst: 'SA',
+      byDay: [
+        { weekday: 'MO', ordinal: undefined },
+        { weekday: 'SU', ordinal: undefined },
+      ],
+      byWeekNo: [49],
+      dtstart: pdt(1997, 9, 2),
+    }
+    expect(strs(expand(opts))).toEqual([
+      '1997-12-07T09:00:00',
+      '1997-12-08T09:00:00',
+      '1998-12-06T09:00:00',
+      '1998-12-07T09:00:00',
+      '1999-12-05T09:00:00',
+      '1999-12-06T09:00:00',
+      '2000-12-03T09:00:00',
+      '2000-12-04T09:00:00',
+      '2001-12-02T09:00:00',
+      '2001-12-03T09:00:00',
+    ])
+  })
+
+  // -----------------------------------------------------------------------
+  // BYMONTH must restrict BYYEARDAY (gen-484).
+  // The fix: yearlyDayset_ByYearDay() now applies BYMONTH as a filter.
+  // -----------------------------------------------------------------------
+  it('BYYEARDAY with BYMONTH: day 140 (May) excluded when BYMONTH={1,12}', () => {
+    // FREQ=YEARLY;COUNT=9;WKST=SU;BYYEARDAY=140,-5,339;BYMONTH=1,12
+    const opts: RRuleOptions = {
+      freq: 'YEARLY',
+      count: 9,
+      wkst: 'SU',
+      byYearDay: [140, -5, 339],
+      byMonth: [1, 12],
+      dtstart: inst('1997-09-02T09:00:00Z'),
+    }
+    expect(strs(expand(opts))).toEqual([
+      '1997-12-05T09:00:00Z',
+      '1997-12-27T09:00:00Z',
+      '1998-12-05T09:00:00Z',
+      '1998-12-27T09:00:00Z',
+      '1999-12-05T09:00:00Z',
+      '1999-12-27T09:00:00Z',
+      '2000-12-04T09:00:00Z',
+      '2000-12-27T09:00:00Z',
+      '2001-12-05T09:00:00Z',
+    ])
+  })
+
+  // -----------------------------------------------------------------------
+  // BYYEARDAY + BYMONTHDAY must intersect (gen-1130, gen-1738).
+  // The fix: yearlyDayset_ByYearDay() now applies BYMONTHDAY as a filter.
+  // -----------------------------------------------------------------------
+  it('BYYEARDAY+BYMONTHDAY intersection: only Oct 7 satisfies BOTH yearday and monthday', () => {
+    // FREQ=YEARLY;COUNT=10;BYMONTHDAY=-28,7,9;BYYEARDAY=103,280,-103
+    // day 103=Apr13 (monthday13 NOT in {-28,7,9}), day280=Oct7 (monthday7 IN list),
+    // day -103(=263)=Sep20 (monthday20 NOT in list). Only Oct7 passes intersection.
+    const opts: RRuleOptions = {
+      freq: 'YEARLY',
+      count: 10,
+      byMonthDay: [-28, 7, 9],
+      byYearDay: [103, 280, -103],
+      dtstart: pdt(1997, 9, 2),
+    }
+    expect(strs(expand(opts))).toEqual([
+      '1997-10-07T09:00:00',
+      '1998-10-07T09:00:00',
+      '1999-10-07T09:00:00',
+      '2001-10-07T09:00:00',
+      '2002-10-07T09:00:00',
+      '2003-10-07T09:00:00',
+      '2005-10-07T09:00:00',
+      '2006-10-07T09:00:00',
+      '2007-10-07T09:00:00',
+      '2009-10-07T09:00:00',
+    ])
+  })
+
+  it('BYYEARDAY+BYMONTHDAY+BYMONTH: leap year day -362 (Jan 5) excluded because 5 not in BYMONTHDAY', () => {
+    // FREQ=YEARLY;COUNT=10;INTERVAL=1;WKST=TU;BYMONTHDAY=-16,4,19;BYYEARDAY=-362;BYMONTH=8,3,1
+    // Non-leap: day -362 = day 4 = Jan 4. monthday4 IN {-16,4,19}. Passes.
+    // Leap: day -362 = day 5 = Jan 5. monthday5 NOT in {-16,4,19}. Excluded.
+    const opts: RRuleOptions = {
+      freq: 'YEARLY',
+      count: 10,
+      interval: 1,
+      wkst: 'TU',
+      byMonthDay: [-16, 4, 19],
+      byYearDay: [-362],
+      byMonth: [8, 3, 1],
+      dtstart: inst('1997-09-02T09:00:00Z'),
+    }
+    expect(strs(expand(opts))).toEqual([
+      '1998-01-04T09:00:00Z',
+      '1999-01-04T09:00:00Z',
+      '2001-01-04T09:00:00Z',
+      '2002-01-04T09:00:00Z',
+      '2003-01-04T09:00:00Z',
+      '2005-01-04T09:00:00Z',
+      '2006-01-04T09:00:00Z',
+      '2007-01-04T09:00:00Z',
+      '2009-01-04T09:00:00Z',
+      '2010-01-04T09:00:00Z',
+    ])
+  })
+
+  // -----------------------------------------------------------------------
+  // BYYEARDAY + ordinal BYDAY + BYMONTH: month-relative ordinal intersection
+  // (gen-2279, seed 505). yearlyDayset_ByYearDay() now checks ordinal BYDAY
+  // using getOrdinalBydayInMonth() when BYMONTH is present.
+  // -----------------------------------------------------------------------
+  it('BYYEARDAY+ordinal BYDAY+BYMONTH: Jul 17 is 3rd Thu only in years where Jul 1 is Tue', () => {
+    // FREQ=YEARLY;COUNT=4;INTERVAL=4;WKST=SA;BYDAY=3TH;BYYEARDAY=198;BYMONTH=6,12,3,7
+    // Day 198 = Jul 17 (non-leap). 3rd Thu of July only when Jul 1=Tue (-> Jul 3,10,17).
+    // First such year >= 1998 with INTERVAL=4 from 1997: 2025 (Jul 1, 2025 is Tue).
+    const opts: RRuleOptions = {
+      freq: 'YEARLY',
+      count: 4,
+      interval: 4,
+      wkst: 'SA',
+      byDay: [{ ordinal: 3, weekday: 'TH' }],
+      byYearDay: [198],
+      byMonth: [6, 12, 3, 7],
+      dtstart: pdt(1997, 9, 2),
+    }
+    expect(strs(expand(opts))).toEqual([
+      '2025-07-17T09:00:00',
+      '2053-07-17T09:00:00',
+      '2081-07-17T09:00:00',
+      '2121-07-17T09:00:00',
+    ])
+  })
+
+  // -----------------------------------------------------------------------
+  // BYWEEKNO + complex intersection: BYDAY + BYMONTHDAY + BYMONTH + WKST=TU
+  // (gen-1044). All filters applied as intersection.
+  // -----------------------------------------------------------------------
+  it('BYWEEKNO+BYDAY+BYMONTHDAY+BYMONTH+WKST=TU: intersection gives sparse years', () => {
+    // FREQ=YEARLY;COUNT=9;WKST=TU;BYDAY=TU;BYMONTHDAY=2;BYWEEKNO=45;BYMONTH=3,11,12
+    const opts: RRuleOptions = {
+      freq: 'YEARLY',
+      count: 9,
+      wkst: 'TU',
+      byDay: [{ weekday: 'TU', ordinal: undefined }],
+      byMonthDay: [2],
+      byWeekNo: [45],
+      byMonth: [3, 11, 12],
+      dtstart: inst('1997-09-02T09:00:00Z'),
+    }
+    expect(strs(expand(opts))).toEqual([
+      '1999-11-02T09:00:00Z',
+      '2004-11-02T09:00:00Z',
+      '2010-11-02T09:00:00Z',
+      '2021-11-02T09:00:00Z',
+      '2027-11-02T09:00:00Z',
+      '2032-11-02T09:00:00Z',
+      '2038-11-02T09:00:00Z',
+      '2049-11-02T09:00:00Z',
+      '2055-11-02T09:00:00Z',
+    ])
+  })
+})

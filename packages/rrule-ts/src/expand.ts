@@ -301,15 +301,20 @@ function resolveYearDay(yd: number, daysInYear: number): number {
 }
 
 // ---------------------------------------------------------------------------
-// ISO week number helpers
+// WKST-aware week number helpers
 // ---------------------------------------------------------------------------
 
-/** Return the Monday of ISO week 1 of the given year. */
-function isoWeek1Monday(T: typeof Temporal, year: number): Temporal.PlainDate {
-  // Jan 4 is always in ISO week 1
+/**
+ * Return the start of week 1 of the given year, anchored on the given WKST day.
+ *
+ * RFC 5545: week 1 is the first WKST-anchored week containing at least 4 days
+ * of the new year. Equivalent to the most recent WKST day on or before Jan 4.
+ */
+function wkstWeek1Start(T: typeof Temporal, year: number, wkstIso: number): Temporal.PlainDate {
   const jan4 = T.PlainDate.from({ year, month: 1, day: 4 })
   const dow = jan4.dayOfWeek // 1=Mon...7=Sun
-  return jan4.subtract({ days: dow - 1 })
+  const daysBack = (dow - wkstIso + 7) % 7
+  return jan4.subtract({ days: daysBack })
 }
 
 /** Resolve a potentially negative BYWEEKNO value (negatives count from the end). */
@@ -318,10 +323,13 @@ function resolveWeekNo(wn: number, weeksInYear: number): number {
   return weeksInYear + wn + 1
 }
 
-/** Determine how many ISO weeks are in a year (52 or 53). */
-function isoWeeksInYear(T: typeof Temporal, year: number): number {
+/** Determine how many WKST-anchored weeks are in a year (52 or 53). */
+function wkstWeeksInYear(T: typeof Temporal, year: number, wkstIso: number): number {
+  // Dec 28 is always in the last week of the year for any WKST choice.
   const dec28 = T.PlainDate.from({ year, month: 12, day: 28 })
-  return dec28.weekOfYear ?? 52
+  const week1Start = wkstWeek1Start(T, year, wkstIso)
+  const daysDiff = dec28.since(week1Start, { largestUnit: 'days' }).days
+  return Math.floor(daysDiff / 7) + 1
 }
 
 // ---------------------------------------------------------------------------
@@ -478,30 +486,32 @@ function yearlyDayset(
   dtstartDT: DT
 ): Temporal.PlainDate[] {
   const { byMonth, byWeekNo, byYearDay, byMonthDay, byDay } = opts
+  // wkstIso is needed for WKST-aware BYWEEKNO anchoring (default MO=1).
+  const wkstIso = opts.wkst !== undefined ? WEEKDAY_TO_ISO[opts.wkst] : 1
 
-  // BYWEEKNO takes priority; pass BYMONTHDAY and BYMONTH so they can filter the generated dates
+  // BYWEEKNO: generates dates in specified weeks; BYMONTH/BYMONTHDAY/BYDAY/BYYEARDAY all intersect.
   if (byWeekNo !== undefined) {
-    return yearlyDayset_ByWeekNo(T, year, byWeekNo, byDay, byMonthDay, byMonth)
+    return yearlyDayset_ByWeekNo(T, year, byWeekNo, byDay, byMonthDay, byMonth, byYearDay, wkstIso)
   }
 
-  // BYYEARDAY
+  // BYYEARDAY: generates specified year-days; BYMONTH/BYMONTHDAY/BYDAY all intersect.
   if (byYearDay !== undefined) {
-    return yearlyDayset_ByYearDay(T, year, byYearDay)
+    return yearlyDayset_ByYearDay(T, year, byYearDay, byMonth, byMonthDay, byDay)
   }
 
   const targetMonths = byMonth ?? null // null = all months
 
-  // Ordinal BYDAY (e.g., 20MO, -1FR)
+  // Ordinal BYDAY (e.g., 20MO, -1FR): BYMONTHDAY also intersects.
   const hasOrdinalByday = byDay !== undefined && byDay.some((d) => d.ordinal !== undefined)
   const hasPlainByday = byDay !== undefined && byDay.some((d) => d.ordinal === undefined)
 
   if (hasOrdinalByday && !hasPlainByday) {
     if (targetMonths !== null) {
-      // nth weekday in each specified month
-      return yearlyDayset_OrdinalBydayInMonths(T, year, targetMonths, byDay!)
+      // nth weekday in each specified month, intersected with BYMONTHDAY
+      return yearlyDayset_OrdinalBydayInMonths(T, year, targetMonths, byDay!, byMonthDay)
     } else {
-      // nth weekday in entire year
-      return yearlyDayset_OrdinalBydayInYear(T, year, byDay!)
+      // nth weekday in entire year, intersected with BYMONTHDAY
+      return yearlyDayset_OrdinalBydayInYear(T, year, byDay!, byMonthDay)
     }
   }
 
@@ -567,11 +577,27 @@ function yearlyDayset_ByWeekNo(
   byWeekNo: number[],
   byDay: WeekdayNum[] | undefined,
   byMonthDay?: number[],
-  byMonth?: number[]
+  byMonth?: number[],
+  byYearDay?: number[],
+  wkstIso: number = 1
 ): Temporal.PlainDate[] {
   const result: Temporal.PlainDate[] = []
-  const weeksInYear = isoWeeksInYear(T, year)
-  const week1Start = isoWeek1Monday(T, year)
+  const weeksInYear = wkstWeeksInYear(T, year, wkstIso)
+  const week1Start = wkstWeek1Start(T, year, wkstIso)
+
+  // Build a set of valid date keys for BYYEARDAY intersection.
+  let validYearDayKeys: Set<string> | null = null
+  if (byYearDay !== undefined && byYearDay.length > 0) {
+    validYearDayKeys = new Set()
+    const jan1 = T.PlainDate.from({ year, month: 1, day: 1 })
+    const daysInYear = jan1.daysInYear
+    for (const yd of byYearDay) {
+      const resolvedYd = resolveYearDay(yd, daysInYear)
+      if (resolvedYd < 1 || resolvedYd > daysInYear) continue
+      const ydDate = jan1.add({ days: resolvedYd - 1 })
+      validYearDayKeys.add(`${ydDate.year}-${ydDate.month}-${ydDate.day}`)
+    }
+  }
 
   const allowedDows: Set<number> | null =
     byDay !== undefined && byDay.length > 0
@@ -585,8 +611,6 @@ function yearlyDayset_ByWeekNo(
     const weekStart = week1Start.add({ days: (resolved - 1) * 7 })
     for (let d = 0; d < 7; d++) {
       const date = weekStart.add({ days: d })
-      // Verify the date is in the correct ISO year and week
-      if (date.weekOfYear !== resolved) continue
       // Apply BYDAY weekday filter
       if (allowedDows !== null && !allowedDows.has(date.dayOfWeek)) continue
       // Apply BYMONTH filter: only include dates in specified months
@@ -596,6 +620,11 @@ function yearlyDayset_ByWeekNo(
         const dim = date.daysInMonth
         const resolvedDays = byMonthDay.map((md) => resolveMonthDay(md, dim))
         if (!resolvedDays.includes(date.day)) continue
+      }
+      // Apply BYYEARDAY filter: intersection with specified year days
+      if (validYearDayKeys !== null) {
+        const key = `${date.year}-${date.month}-${date.day}`
+        if (!validYearDayKeys.has(key)) continue
       }
       result.push(date)
     }
@@ -607,17 +636,69 @@ function yearlyDayset_ByWeekNo(
 function yearlyDayset_ByYearDay(
   T: typeof Temporal,
   year: number,
-  byYearDay: number[]
+  byYearDay: number[],
+  byMonth?: number[],
+  byMonthDay?: number[],
+  byDay?: WeekdayNum[]
 ): Temporal.PlainDate[] {
   const result: Temporal.PlainDate[] = []
   const jan1 = T.PlainDate.from({ year, month: 1, day: 1 })
   const daysInYear = jan1.daysInYear
 
+  const plainEntries = byDay !== undefined ? byDay.filter((d) => d.ordinal === undefined) : []
+  const ordinalEntries = byDay !== undefined ? byDay.filter((d) => d.ordinal !== undefined) : []
+
+  // Build allowed plain-weekday set for fast filtering.
+  const allowedDows: Set<number> | null =
+    plainEntries.length > 0 ? new Set(plainEntries.map((d) => WEEKDAY_TO_ISO[d.weekday])) : null
+
+  // Pre-compute the set of ordinal BYDAY dates for year-relative checks
+  // (BYYEARDAY + ordinal BYDAY without BYMONTH: Nth weekday of the year).
+  // With BYMONTH present, ordinal checks are month-relative (computed per-candidate).
+  let ordinalYearDayKeys: Set<string> | null = null
+  if (ordinalEntries.length > 0 && byMonth === undefined) {
+    ordinalYearDayKeys = new Set()
+    const yearOrdinalDates = yearlyDayset_OrdinalBydayInYear(T, year, ordinalEntries)
+    for (const d of yearOrdinalDates) {
+      ordinalYearDayKeys.add(`${d.year}-${d.month}-${d.day}`)
+    }
+  }
+
   for (const yd of byYearDay) {
     const resolved = resolveYearDay(yd, daysInYear)
     if (resolved < 1 || resolved > daysInYear) continue
     try {
-      result.push(jan1.add({ days: resolved - 1 }))
+      const date = jan1.add({ days: resolved - 1 })
+      // BYMONTH intersection: drop year-days outside specified months
+      if (byMonth !== undefined && !byMonth.includes(date.month)) continue
+      // BYMONTHDAY intersection: drop year-days whose day-of-month is not in list
+      if (byMonthDay !== undefined) {
+        const dim = date.daysInMonth
+        const resolvedDays = byMonthDay.map((md) => resolveMonthDay(md, dim))
+        if (!resolvedDays.includes(date.day)) continue
+      }
+      // BYDAY plain weekday intersection
+      if (allowedDows !== null && !allowedDows.has(date.dayOfWeek)) continue
+      // BYDAY ordinal intersection: with BYMONTH, check month-relative Nth weekday;
+      // without BYMONTH, check against the pre-computed year-relative ordinal set.
+      if (ordinalEntries.length > 0) {
+        if (byMonth !== undefined) {
+          // Month-relative ordinal: is this date the Nth weekday of its month?
+          const ordinalDatesInMonth = getOrdinalBydayInMonth(
+            T,
+            date.year,
+            date.month,
+            date.daysInMonth,
+            ordinalEntries
+          )
+          if (!ordinalDatesInMonth.some((d) => d.day === date.day)) continue
+        } else {
+          // Year-relative ordinal: check pre-computed set
+          const key = `${date.year}-${date.month}-${date.day}`
+          if (ordinalYearDayKeys !== null && !ordinalYearDayKeys.has(key)) continue
+        }
+      }
+      result.push(date)
     } catch {
       // skip
     }
@@ -630,7 +711,8 @@ function yearlyDayset_OrdinalBydayInMonths(
   T: typeof Temporal,
   year: number,
   months: number[],
-  byDay: WeekdayNum[]
+  byDay: WeekdayNum[],
+  byMonthDay?: number[]
 ): Temporal.PlainDate[] {
   const result: Temporal.PlainDate[] = []
   for (const month of months) {
@@ -641,7 +723,15 @@ function yearlyDayset_OrdinalBydayInMonths(
       continue
     }
     const days = getByDayInMonth(T, year, month, baseDate.daysInMonth, byDay)
-    result.push(...days)
+    for (const date of days) {
+      // BYMONTHDAY intersection: the ordinal weekday must also be a listed month day
+      if (byMonthDay !== undefined) {
+        const dim = date.daysInMonth
+        const resolvedDays = byMonthDay.map((md) => resolveMonthDay(md, dim))
+        if (!resolvedDays.includes(date.day)) continue
+      }
+      result.push(date)
+    }
   }
   return sortDates(T, result)
 }
@@ -649,7 +739,8 @@ function yearlyDayset_OrdinalBydayInMonths(
 function yearlyDayset_OrdinalBydayInYear(
   T: typeof Temporal,
   year: number,
-  byDay: WeekdayNum[]
+  byDay: WeekdayNum[],
+  byMonthDay?: number[]
 ): Temporal.PlainDate[] {
   const result: Temporal.PlainDate[] = []
   const jan1 = T.PlainDate.from({ year, month: 1, day: 1 })
@@ -671,7 +762,14 @@ function yearlyDayset_OrdinalBydayInYear(
     const ordinal = entry.ordinal
     const idx = ordinal > 0 ? ordinal - 1 : instances.length + ordinal
     if (idx >= 0 && idx < instances.length) {
-      result.push(instances[idx])
+      const date = instances[idx]
+      // BYMONTHDAY intersection: the ordinal weekday must also be a listed month day
+      if (byMonthDay !== undefined) {
+        const dim = date.daysInMonth
+        const resolvedDays = byMonthDay.map((md) => resolveMonthDay(md, dim))
+        if (!resolvedDays.includes(date.day)) continue
+      }
+      result.push(date)
     }
   }
 

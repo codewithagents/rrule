@@ -507,13 +507,8 @@ describe('expand() structural properties (property-based, hermetic)', () => {
   // must satisfy ALL of them (intersection), not ANY (union). Specifically, for
   // YEARLY with both BYMONTHDAY and BYYEARDAY, every returned occurrence must
   // have its day-of-month in BYMONTHDAY AND its day-of-year in BYYEARDAY.
-  //
-  // SKIPPED: the current expand.ts unions BYMONTHDAY and BYYEARDAY for YEARLY
-  // (yearlyDayset() falls into the BYYEARDAY branch and ignores BYMONTHDAY as a
-  // filter). Un-skip after expand.ts is corrected (Task #10: fix BY* intersection,
-  // BYMONTH restriction, and BYWEEKNO/WKST anchoring).
   // -------------------------------------------------------------------------
-  it.skip('[un-skip after expand.ts fix] BY* INTERSECTION: YEARLY BYMONTHDAY+BYYEARDAY occurrences satisfy both constraints', () => {
+  it('BY* INTERSECTION: YEARLY BYMONTHDAY+BYYEARDAY occurrences satisfy both constraints', () => {
     const yearlyBothArb: fc.Arbitrary<RRuleOptions> = fc
       .record({
         dtstart: pdtArb,
