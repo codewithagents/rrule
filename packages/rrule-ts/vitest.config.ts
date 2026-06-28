@@ -5,8 +5,6 @@ export default defineConfig({
     setupFiles: ['./test/setup-temporal.ts'],
     coverage: {
       provider: 'v8',
-      // Coverage is scoped to the implemented files only. Stubs in text/ and
-      // locales/ are excluded until the expansion phase wires real behaviour.
       include: [
         'src/temporal.ts',
         'src/result.ts',
@@ -14,6 +12,8 @@ export default defineConfig({
         'src/stringify.ts',
         'src/validate.ts',
         'src/index.ts',
+        'src/expand.ts',
+        'src/rruleset.ts',
       ],
       exclude: ['src/**/*.test.ts'],
       thresholds: {
