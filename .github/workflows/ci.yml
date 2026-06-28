@@ -1,0 +1,120 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+# Minimal permissions: fork PRs have no secrets access by design with pull_request trigger
+permissions:
+  contents: read
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Change detection: classify the PR as code-touching vs docs-only.
+  # Tier 2 (coverage) gates on the `code` output so docs-only PRs skip it.
+  # Tier 1 (ci) and the CI Gate always run.
+  # ---------------------------------------------------------------------------
+  changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: dorny/paths-filter@fbd0ab8f3e69293af611ebaee6363fc25e6d187d # v4.0.1
+        id: filter
+        with:
+          filters: |
+            code:
+              - '!**/*.md'
+              - '!**/*.mdx'
+
+  # ===========================================================================
+  # TIER 1: always runs on both Node versions (polyfill path on 22, native on 26).
+  # ===========================================================================
+  ci:
+    name: Build, Lint & Test (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 26]
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm lint
+      - run: pnpm test
+
+  # ===========================================================================
+  # TIER 2: coverage. Gates on change detection; skipped on docs-only PRs.
+  # ===========================================================================
+  coverage:
+    name: Coverage
+    needs: changes
+    if: needs.changes.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # Codecov OIDC
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - run: pnpm --filter rrule-ts run test:coverage
+
+      - name: Upload coverage to Codecov (rrule-ts)
+        uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v5
+        with:
+          use_oidc: true
+          files: ./packages/rrule-ts/coverage/lcov.info
+          flags: rrule-ts
+          disable_search: true
+          fail_ci_if_error: false
+
+  # ===========================================================================
+  # GATE AGGREGATOR: single stable required status check.
+  # Always runs so it reports even when Tier 2 is skipped on docs-only PRs.
+  # ===========================================================================
+  gate:
+    name: CI Gate
+    needs:
+      - changes
+      - coverage
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Verify all Tier 2 jobs passed or were skipped
+        env:
+          RESULTS: ${{ toJSON(needs) }}
+        run: |
+          echo "Needed job results:"
+          echo "$RESULTS"
+          if [ -z "$RESULTS" ] || [ "$RESULTS" = "null" ]; then
+            echo "::error::CI Gate failed: needs results were empty or null."
+            exit 1
+          fi
+          bad=$(echo "$RESULTS" | jq -r 'to_entries[] | select(.value.result != "success" and .value.result != "skipped") | "\(.key)=\(.value.result)"')
+          if [ -n "$bad" ]; then
+            echo "::error::CI Gate failed, the following needed jobs did not pass:"
+            echo "$bad"
+            exit 1
+          fi
+          echo "CI Gate passed: every needed job was success or skipped."

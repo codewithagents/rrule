@@ -1,0 +1,16 @@
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 5%
+
+flag_management:
+  default_rules:
+    carryforward: true
+
+flags:
+  rrule-ts:
+    paths:
+      - packages/rrule-ts/src/
+    carryforward: true

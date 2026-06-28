@@ -1,0 +1,54 @@
+# Dependabot configuration for the codewithagents/rrule monorepo.
+# Docs: https://docs.github.com/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+#
+# Strategy:
+#   - One grouped PR per week for all minor + patch bumps (low-noise).
+#   - Each MAJOR bump lands as its own PR so it gets isolated review and CI.
+#   - GitHub Actions pins are kept current in a single grouped PR.
+
+version: 2
+
+updates:
+  # ---------------------------------------------------------------------------
+  # npm / pnpm: root package.json, every workspace package, and the pnpm
+  # catalog. `directory: "/"` covers the whole pnpm workspace.
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: 'npm'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '06:00'
+      timezone: 'Europe/Berlin'
+    open-pull-requests-limit: 10
+    versioning-strategy: 'increase-if-necessary'
+    commit-message:
+      prefix: 'chore'
+      include: 'scope'
+    groups:
+      npm-minor-and-patch:
+        patterns:
+          - '*'
+        update-types:
+          - 'minor'
+          - 'patch'
+    # Majors are deliberately NOT grouped: each opens its own PR for review.
+
+  # ---------------------------------------------------------------------------
+  # GitHub Actions referenced in .github/workflows/*.
+  # ---------------------------------------------------------------------------
+  - package-ecosystem: 'github-actions'
+    directory: '/'
+    schedule:
+      interval: 'weekly'
+      day: 'monday'
+      time: '06:00'
+      timezone: 'Europe/Berlin'
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: 'chore'
+      include: 'scope'
+    groups:
+      github-actions:
+        patterns:
+          - '*'

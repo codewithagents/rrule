@@ -1,0 +1,13 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "bootstrap-sha": "ed6050f",
+  "packages": {
+    "packages/rrule-ts": {
+      "release-type": "node",
+      "package-name": "rrule-ts",
+      "component": "rrule-ts",
+      "changelog-path": "CHANGELOG.md",
+      "bump-major-pre-major": true
+    }
+  }
+}

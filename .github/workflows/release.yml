@@ -1,0 +1,63 @@
+name: Release Please
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      publish_rrule_ts:
+        description: 'Re-publish rrule-ts (for failed release recovery)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write # create tags and releases
+  pull-requests: write # create and update release PRs
+
+jobs:
+  release-please:
+    name: Release Please
+    runs-on: ubuntu-latest
+    outputs:
+      rrule-ts--release_created: ${{ steps.release.outputs['packages/rrule-ts--release_created'] }}
+      rrule-ts--version: ${{ steps.release.outputs['packages/rrule-ts--version'] }}
+    steps:
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        id: release
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  publish-rrule-ts:
+    name: Publish rrule-ts
+    needs: release-please
+    if: ${{ needs.release-please.outputs['rrule-ts--release_created'] || inputs.publish_rrule_ts }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # required for npm Trusted Publishing (OIDC)
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+      # OIDC Trusted Publishing auth requires npm 11.5.1+. Node 22 ships with
+      # npm 10.x, upgrade to latest to guarantee the minimum version.
+      - name: Upgrade npm to latest (OIDC Trusted Publishing requires >=11.5.1)
+        run: npm install -g npm@latest
+      # setup-node injects NODE_AUTH_TOKEN=$GITHUB_TOKEN into .npmrc, which blocks
+      # OIDC Trusted Publishing. Remove it so npm falls back to OIDC token exchange.
+      - name: Remove injected auth token (npm will use OIDC Trusted Publishing)
+        run: npm config delete //registry.npmjs.org/:_authToken
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter rrule-ts build
+      # pnpm pack resolves catalog: specifiers to actual version ranges before creating
+      # the tarball. npm publish then publishes the pre-packed tarball with OIDC auth.
+      # Using npm publish directly leaves catalog: unresolved, causing EUNSUPPORTEDPROTOCOL.
+      - run: pnpm pack
+        working-directory: packages/rrule-ts
+      - run: npm publish --access public --provenance *.tgz
+        working-directory: packages/rrule-ts
