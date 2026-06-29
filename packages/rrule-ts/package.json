@@ -1,6 +1,6 @@
 {
   "name": "rrule-ts",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "RFC 5545 RRULE parser, validator, stringifier, and expander. Temporal-native, zero runtime dependencies.",
   "type": "module",
   "main": "./dist/index.js",
