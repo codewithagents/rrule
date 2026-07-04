@@ -21,9 +21,38 @@
 // UTC cases use the same Date construction; the Z suffix is the only difference
 // in output format.
 
-import { RRule, Weekday } from 'rrule'
-import type { Options as RRuleOptions, ByWeekday } from 'rrule'
+// rrule uses a CommonJS dist that Node ESM cannot do named imports from.
+// createRequire is the standard way to load CJS packages from ESM modules.
+import { createRequire } from 'node:module'
+import type {
+  Options as RRuleOptions,
+  ByWeekday,
+  RRule as RRuleType,
+  Weekday as WeekdayType,
+} from 'rrule'
 import type { OracleInput } from './generator.js'
+
+const _require = createRequire(import.meta.url)
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { RRule, Weekday } = _require('rrule') as {
+  RRule: typeof RRuleType & {
+    YEARLY: number
+    MONTHLY: number
+    WEEKLY: number
+    DAILY: number
+    HOURLY: number
+    MINUTELY: number
+    SECONDLY: number
+    MO: WeekdayType
+    TU: WeekdayType
+    WE: WeekdayType
+    TH: WeekdayType
+    FR: WeekdayType
+    SA: WeekdayType
+    SU: WeekdayType
+  }
+  Weekday: typeof WeekdayType
+}
 
 // ---------------------------------------------------------------------------
 // Public result type
@@ -52,7 +81,7 @@ const FREQ_MAP: Record<string, number> = {
 }
 
 // rrule.js weekday singletons (carry weekday index, no ordinal).
-const WEEKDAY_MAP: Record<string, Weekday> = {
+const WEEKDAY_MAP: Record<string, WeekdayType> = {
   MO: RRule.MO,
   TU: RRule.TU,
   WE: RRule.WE,

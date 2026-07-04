@@ -8,6 +8,7 @@
     "gen:corpus": "node --import tsx/esm src/gen-corpus.ts",
     "fuzz": "node --import tsx/esm src/fuzz.ts",
     "sweep": "node --import tsx/esm src/sweep.ts",
+    "sweep3": "node --import tsx/esm src/sweep3.ts",
     "test": "vitest run",
     "lint": "tsc --noEmit"
   },
