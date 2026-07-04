@@ -3,7 +3,10 @@ title: Stringifying
 description: The stringify() function, canonical output format, and the round-trip guarantee.
 ---
 
-`stringify()` converts an `RRuleOptions` object back to a canonical RRULE string.
+import { Aside } from '@astrojs/starlight/components'
+
+`stringify()` converts an `RRuleOptions` object back to a canonical RRULE string. It always
+includes the `RRULE:` prefix and emits parts in a fixed canonical order.
 
 ## Function signature
 
@@ -13,11 +16,11 @@ function stringify(options: RRuleOptions): string
 
 ## Canonical output format
 
-The output is always:
+The output always:
 
-- Prefixed with `RRULE:`
-- Parts sorted in a canonical order (FREQ first, then the remaining parts alphabetically)
-- DTSTART content line included before the RRULE line when `options.dtstart` is present
+- Starts with `RRULE:` (or a `DTSTART` line followed by `RRULE:` when `dtstart` is set)
+- Emits RRULE parts in this fixed order: `FREQ`, `UNTIL`, `COUNT`, `INTERVAL`, `WKST`, `BYSECOND`, `BYMINUTE`, `BYHOUR`, `BYDAY`, `BYMONTHDAY`, `BYYEARDAY`, `BYWEEKNO`, `BYMONTH`, `BYSETPOS`
+- Omits any part whose value is `undefined` in the options object
 
 Example:
 
@@ -26,60 +29,106 @@ import { stringify } from 'rrule-ts'
 
 stringify({
   freq: 'WEEKLY',
-  byDay: [{ weekday: 'MO' }, { weekday: 'WE' }, { weekday: 'FR' }],
+  byDay: [
+    { weekday: 'MO', ordinal: undefined },
+    { weekday: 'WE', ordinal: undefined },
+    { weekday: 'FR', ordinal: undefined },
+  ],
   count: 10,
 })
 // 'RRULE:FREQ=WEEKLY;COUNT=10;BYDAY=MO,WE,FR'
 ```
 
-## DTSTART output
+Note that `COUNT` appears before `BYDAY` in the output regardless of the order the fields appear in
+the `options` object, because `stringify` always uses the canonical order.
 
-When `dtstart` is present in the options, `stringify()` includes a `DTSTART` content line:
+## BYDAY serialization
+
+Plain weekdays (no ordinal) serialize as their two-letter abbreviation. Ordinal weekdays include
+the ordinal prefix:
 
 ```ts
 stringify({
-  freq: 'DAILY',
-  count: 5,
-  dtstart: Temporal.PlainDate.from('2024-01-01'),
+  freq: 'MONTHLY',
+  byDay: [
+    { weekday: 'MO', ordinal: 2 }, // 2nd Monday
+    { weekday: 'FR', ordinal: -1 }, // last Friday
+  ],
 })
-// 'DTSTART:20240101\nRRULE:FREQ=DAILY;COUNT=5'
+// 'RRULE:FREQ=MONTHLY;BYDAY=2MO,-1FR'
 ```
 
-For timezone-aware starts:
+## DTSTART output
+
+When `dtstart` is present in the options, `stringify()` prepends a `DTSTART` content line. The
+`RRULE:` line follows on the next line. This layout matches the iCalendar multiline format and
+ensures `parse(stringify(x))` deep-equals `x` for all valid `x`.
+
+```ts
+import { getTemporal } from 'rrule-ts'
+
+const T = getTemporal()
+
+// Date-only DTSTART
+stringify({
+  freq: 'DAILY',
+  count: 5,
+  dtstart: T.PlainDate.from('2024-01-01'),
+})
+// 'DTSTART:20240101\nRRULE:FREQ=DAILY;COUNT=5'
+
+// UTC datetime DTSTART
+stringify({
+  freq: 'WEEKLY',
+  dtstart: T.Instant.from('2024-01-01T09:00:00Z'),
+})
+// 'DTSTART:20240101T090000Z\nRRULE:FREQ=WEEKLY'
+```
+
+For timezone-aware starts, the `TZID=` parameter is included:
 
 ```ts
 stringify({
   freq: 'WEEKLY',
-  dtstart: Temporal.ZonedDateTime.from('2024-01-01T09:00:00[America/New_York]'),
+  dtstart: T.ZonedDateTime.from('2024-01-01T09:00:00[America/New_York]'),
+  tzid: 'America/New_York',
 })
 // 'DTSTART;TZID=America/New_York:20240101T090000\nRRULE:FREQ=WEEKLY'
 ```
+
+<Aside type="note" title="tzid and dtstart">
+  The `tzid` field in `RRuleOptions` is the IANA timezone identifier string extracted from the
+  `DTSTART;TZID=` content line. When `dtstart` is a `Temporal.ZonedDateTime`, the timezone is
+  already embedded in the value. `stringify()` reads `options.tzid` to emit the `TZID=` parameter on
+  the `DTSTART` line. If you build `RRuleOptions` by hand with a `ZonedDateTime` dtstart, set `tzid`
+  to the same timezone identifier so the round-trip is preserved.
+</Aside>
 
 ## Round-trip guarantee
 
 For all valid `RRuleOptions`:
 
-```ts
+```
 parse(stringify(x)).value deep-equals x
 ```
 
-And for all valid RRULE strings:
+And for all valid RRULE strings that `parse()` accepts:
 
-```ts
-stringify(parse(stringify(x)).value) === stringify(x)
+```
+stringify(parse(s).value!) === stringify(parse(stringify(parse(s).value!)).value!)
 ```
 
-This means `stringify` is idempotent: stringifying a parsed value produces the same string as
-stringifying the original.
+In practice: stringifying is idempotent. Once a value has been parsed and stringified, stringifying
+the result again produces the same string.
 
 ## stringify vs toText
 
-|                | `stringify()`                               | `toText()`                              |
-| -------------- | ------------------------------------------- | --------------------------------------- |
-| Output         | `RRULE:FREQ=WEEKLY;COUNT=10;BYDAY=MO,WE,FR` | `every weekday for 10 times`            |
-| Purpose        | Storage, wire format, iCalendar             | User-facing display                     |
-| Round-trip     | Yes                                         | No (natural language loses information) |
-| Locale support | No                                          | Yes                                     |
+|                | `stringify()`                               | `toText()`                                              |
+| -------------- | ------------------------------------------- | ------------------------------------------------------- |
+| Output         | `RRULE:FREQ=WEEKLY;COUNT=10;BYDAY=MO,WE,FR` | `every week on Monday, Wednesday, and Friday, 10 times` |
+| Purpose        | Storage, wire format, iCalendar             | User-facing display                                     |
+| Round-trip     | Yes                                         | No (natural language loses information)                 |
+| Locale support | No                                          | Yes (EN and DE built in)                                |
 
 Use `stringify()` when storing or transmitting the RRULE. Use `toText()` when displaying it to a
 user. See the [toText and fromText guide](/guides/totext-fromtext).

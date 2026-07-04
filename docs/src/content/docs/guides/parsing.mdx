@@ -79,16 +79,28 @@ Ordinal weekday values like `3MO` (third Monday) and `-1FR` (last Friday) are pa
 ```ts
 interface WeekdayNum {
   weekday: Weekday // 'MO' | 'TU' | 'WE' | 'TH' | 'FR' | 'SA' | 'SU'
-  n?: number // ordinal, positive or negative
+  ordinal: number | undefined // positive/negative ordinal; undefined means every occurrence
 }
 ```
+
+When `ordinal` is `undefined`, the entry selects every occurrence of that weekday in the period (for example `BYDAY=MO` in a WEEKLY rule selects every Monday). When `ordinal` is set, it selects the nth (or nth-from-last) occurrence within a MONTHLY or YEARLY period.
 
 For example, `BYDAY=2MO,-1FR` parses to:
 
 ```ts
 byDay: [
-  { weekday: 'MO', n: 2 },
-  { weekday: 'FR', n: -1 },
+  { weekday: 'MO', ordinal: 2 },
+  { weekday: 'FR', ordinal: -1 },
+]
+```
+
+And plain weekdays `BYDAY=MO,WE,FR` parse to:
+
+```ts
+byDay: [
+  { weekday: 'MO', ordinal: undefined },
+  { weekday: 'WE', ordinal: undefined },
+  { weekday: 'FR', ordinal: undefined },
 ]
 ```
 

@@ -8,12 +8,12 @@ import { PackageManagers } from 'starlight-package-managers'
 
 **rrule-ts** is an RFC 5545 recurrence rule (RRULE) library for TypeScript. It provides:
 
-- `parse()`: convert an RRULE string to a typed `RRuleOptions` object
+- `parse()`: convert an RRULE string (with optional `DTSTART`) to a typed `RRuleOptions` object
 - `validate()`: enforce RFC 5545 cross-field rules, returning all errors with stable rule IDs
-- `stringify()`: convert `RRuleOptions` back to a canonical RRULE string
-- `expand()` / `iterate()`: generate the occurrence sequence as Temporal date/datetime values
-- `RRuleSet`: combine RRULE, RDATE, EXRULE, and EXDATE into a single merged sequence
-- `toText()` / `fromText()`: human-readable rendering (tree-shakeable subpath)
+- `stringify()`: convert `RRuleOptions` back to a canonical RRULE string, with round-trip guarantee
+- `expand()` / `iterate()`: materialize or lazily stream the occurrence sequence as Temporal values
+- `RRuleSet`: combine multiple RRULEs, RDATEs, EXRULEs, and EXDATEs into one sorted sequence
+- `toText()` / `fromText()`: human-readable rendering and parsing, EN and DE locale packs included
 
 ## Temporal-native design
 
@@ -60,6 +60,7 @@ automatically.
 
 ## What comes next
 
-- [Quickstart](/getting-started/quickstart): a working end-to-end example in 15 lines
-- [Parsing guide](/guides/parsing): all input formats, the `Result` type, and `RRuleOptions` shape
+- [Quickstart](/getting-started/quickstart): parse a DTSTART+RRULE string, expand to occurrences, and convert to a human-readable sentence
+- [Parsing guide](/guides/parsing): all input formats, the `Result` type, and the full `RRuleOptions` shape
 - [Validation guide](/guides/validation): all stable rule IDs and how to use them in error maps
+- [toText and fromText guide](/guides/totext-fromtext): human-readable rendering and locale packs

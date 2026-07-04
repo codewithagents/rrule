@@ -7,15 +7,15 @@ head:
     content: 'rrule-ts: RFC 5545 RRULE for TypeScript, Temporal-native'
 hero:
   title: RFC 5545 recurrence rules. Correct by construction.
-  tagline: Parse, validate, stringify, and expand RRULE strings using the TC39 Temporal API. Temporal-native means DST transitions, leap seconds, and timezone semantics are handled correctly without workarounds.
+  tagline: Parse, validate, stringify, and expand RRULE strings using the TC39 Temporal API. Differentially proven against both python-dateutil and rrule.js. Temporal-native, zero runtime dependencies.
   actions:
     - text: Get Started
       link: /getting-started
       icon: right-arrow
       variant: primary
-    - text: View on GitHub
-      link: https://github.com/codewithagents/rrule
-      icon: external
+    - text: Conformance suite
+      link: /conformance/differential-suite
+      icon: approve-check-circle
       variant: secondary
 ---
 
@@ -115,12 +115,13 @@ console.log(stringify(validation.value))
     Go from a RRULE string to validated, expanded occurrences in minutes. [Read the
     quickstart](/getting-started/quickstart)
   </Card>
+  <Card title="Conformance" icon="approve-check-circle">
+    See how every expansion result is verified against python-dateutil and rrule.js. [View the
+    conformance suite](/conformance/differential-suite)
+  </Card>
   <Card title="GitHub" icon="github">
     Source code, issues, and the differential conformance corpus. [View on
     GitHub](https://github.com/codewithagents/rrule)
-  </Card>
-  <Card title="npm" icon="seti:npm">
-    Install from the npm registry. [View on npm](https://www.npmjs.com/package/rrule-ts)
   </Card>
 </CardGrid>
 

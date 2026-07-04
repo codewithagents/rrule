@@ -5,15 +5,24 @@ description: Go from a RRULE string to validated, expanded occurrences in minute
 
 import { Aside } from '@astrojs/starlight/components'
 
-This guide walks through a complete example: parse an RRULE string, check the result, validate the
-parsed options, check the validation errors, and stringify back to canonical form.
+This guide walks through a complete example: parse a DTSTART+RRULE block, validate the parsed
+options, expand to occurrences, stringify back to canonical form, and convert to a human-readable
+sentence with `toText`.
 
-## Parse a RRULE string
+## Parse a DTSTART+RRULE string
+
+`parse()` accepts a multiline iCalendar block with an optional `DTSTART` content line followed by
+the `RRULE:` line.
 
 ```ts
 import { parse } from 'rrule-ts'
 
-const result = parse('RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR;COUNT=10')
+const input = [
+  'DTSTART;TZID=America/New_York:20240101T090000',
+  'RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR;COUNT=10',
+].join('\n')
+
+const result = parse(input)
 ```
 
 `parse()` returns a `Result` type. It never throws on user input.
@@ -28,14 +37,15 @@ if (!result.ok) {
 // result.value is RRuleOptions
 const options = result.value
 console.log(options.freq) // 'WEEKLY'
-console.log(options.byDay) // [{ weekday: 'MO' }, { weekday: 'WE' }, { weekday: 'FR' }]
+console.log(options.byDay) // [{ weekday: 'MO', ordinal: undefined }, ...]
 console.log(options.count) // 10
+console.log(options.tzid) // 'America/New_York'
 ```
 
 ## Validate the parsed options
 
 `parse()` is permissive on cross-field constraints. `validate()` enforces RFC 5545 semantic rules
-and returns every error, not just the first.
+and returns every error at once, not just the first.
 
 ```ts
 import { validate } from 'rrule-ts'
@@ -55,6 +65,36 @@ if (!validation.ok) {
 // validation.value is the same RRuleOptions, confirmed valid
 ```
 
+## Expand to occurrences
+
+`expand()` materializes the occurrence sequence into an array. It requires `dtstart` to be set on
+the options. Pass a plain number as the second argument to cap the result, or pass an
+`ExpandOptions` object for `after`/`before` window filtering.
+
+```ts
+import { expand } from 'rrule-ts'
+
+// Polyfill needed on Node < 26. Skip this block on Node 26+.
+import { setTemporal } from 'rrule-ts'
+import { Temporal } from 'temporal-polyfill'
+setTemporal(Temporal)
+
+const occurrences = expand(validation.value, 5)
+// Returns up to 5 Temporal.ZonedDateTime values (matching the DTSTART type)
+for (const occ of occurrences) {
+  console.log(occ.toString())
+}
+// 2024-01-01T09:00:00-05:00[America/New_York]
+// 2024-01-03T09:00:00-05:00[America/New_York]
+// 2024-01-05T09:00:00-05:00[America/New_York]
+// 2024-01-08T09:00:00-05:00[America/New_York]
+// 2024-01-10T09:00:00-05:00[America/New_York]
+```
+
+Each occurrence is a `Temporal` value whose type matches the `dtstart` type: `Temporal.ZonedDateTime`
+for a TZID-qualified start, `Temporal.Instant` for a UTC start, `Temporal.PlainDateTime` for a
+floating start, or `Temporal.PlainDate` for a date-only start.
+
 ## Stringify back to canonical form
 
 ```ts
@@ -62,23 +102,61 @@ import { stringify } from 'rrule-ts'
 
 const canonical = stringify(validation.value)
 console.log(canonical)
+// DTSTART;TZID=America/New_York:20240101T090000
 // RRULE:FREQ=WEEKLY;COUNT=10;BYDAY=MO,WE,FR
 ```
 
-`stringify()` always outputs parts in a canonical order and always includes the `RRULE:` prefix.
+`stringify()` always outputs parts in a fixed canonical order and always includes the `RRULE:`
+prefix. When `dtstart` is present in the options, a `DTSTART` content line is prepended so the
+output is a valid iCalendar block that can be passed back into `parse()`.
 
-## Putting it together
+## Convert to a human-readable sentence
+
+`toText()` (from `rrule-ts/text`) converts `RRuleOptions` to a natural-language recurrence
+description. It defaults to English and accepts locale packs for other languages.
 
 ```ts
-import { parse, validate, stringify } from 'rrule-ts'
+import { toText } from 'rrule-ts/text'
 
-const result = parse('RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR;COUNT=10')
-if (!result.ok) {
-  console.error(result.error)
+const sentence = toText(validation.value)
+console.log(sentence)
+// 'every week on Monday, Wednesday, and Friday, 10 times'
+```
+
+For German output, import the German locale pack:
+
+```ts
+import { toText } from 'rrule-ts/text'
+import { de } from 'rrule-ts/locales/de'
+
+const sentence = toText(validation.value, { locale: de })
+console.log(sentence)
+// 'jede Woche am Montag, Mittwoch und Freitag, 10-mal'
+```
+
+## Putting it all together
+
+```ts
+import { parse, validate, stringify, setTemporal } from 'rrule-ts'
+import { expand } from 'rrule-ts'
+import { toText } from 'rrule-ts/text'
+import { Temporal } from 'temporal-polyfill'
+
+// Inject polyfill on Node < 26 (skip on Node 26+)
+setTemporal(Temporal)
+
+const input = [
+  'DTSTART;TZID=America/New_York:20240101T090000',
+  'RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR;COUNT=10',
+].join('\n')
+
+const parseResult = parse(input)
+if (!parseResult.ok) {
+  console.error(parseResult.error)
   process.exit(1)
 }
 
-const validation = validate(result.value)
+const validation = validate(parseResult.value)
 if (!validation.ok) {
   for (const e of validation.error) {
     console.error(`${e.ruleId}: ${e.message}`)
@@ -86,8 +164,22 @@ if (!validation.ok) {
   process.exit(1)
 }
 
-console.log(stringify(validation.value))
+const options = validation.value
+
+// Canonical wire format
+console.log(stringify(options))
+// DTSTART;TZID=America/New_York:20240101T090000
 // RRULE:FREQ=WEEKLY;COUNT=10;BYDAY=MO,WE,FR
+
+// Human-readable display
+console.log(toText(options))
+// 'every week on Monday, Wednesday, and Friday, 10 times'
+
+// First 3 occurrences
+const first3 = expand(options, 3)
+for (const occ of first3) {
+  console.log((occ as Temporal.ZonedDateTime).toString())
+}
 ```
 
 <Aside type="tip" title="The Result pattern">
@@ -99,5 +191,6 @@ exceptions in production.
 ## What comes next
 
 - [Parsing guide](/guides/parsing): all input formats `parse()` accepts, and the full `RRuleOptions` shape
-- [Validation guide](/guides/validation): all stable rule IDs and how to use them for translations or error maps
+- [Validation guide](/guides/validation): all stable ruleIds and how to use them for translations or error maps
 - [Expansion guide](/guides/expansion): generate occurrence sequences with `expand()` and `iterate()`
+- [toText and fromText guide](/guides/totext-fromtext): human-readable rendering and locale packs
