@@ -29,6 +29,8 @@ python-dateutil version: 2.9.0.post0
 from __future__ import annotations
 
 import json
+import os
+import signal
 import sys
 from datetime import date, datetime, timezone, timedelta
 
@@ -191,6 +193,37 @@ def _format_occurrence(dt: datetime) -> str:
     return dt.strftime("%Y-%m-%dT%H:%M:%S")
 
 
+class _CaseTimeout(BaseException):
+    """Raised by the per-case SIGALRM guard. Subclasses BaseException so the
+    broad ``except Exception`` inside ``_process_case`` does not swallow it."""
+
+
+def _timeout_handler(signum, frame):  # noqa: ANN001, ARG001
+    raise _CaseTimeout()
+
+
+def _process_case_guarded(case: dict, timeout_sec: float) -> dict:
+    """Run a case, optionally bounded by a per-case wall-clock timeout.
+
+    dateutil can grind on pathological sub-second rules with sparse filters.
+    When ``ORACLE_TIMEOUT_SEC`` is set (used by the differential sweep, NOT by
+    corpus generation) each case is bounded so one slow case cannot stall an
+    entire batch; a bounded case is reported with ``error="timeout"``. With the
+    env var unset the behaviour is byte-for-byte identical to before, so the
+    committed corpus is unaffected.
+    """
+    if timeout_sec <= 0:
+        return _process_case(case)
+    signal.signal(signal.SIGALRM, _timeout_handler)
+    signal.setitimer(signal.ITIMER_REAL, timeout_sec)
+    try:
+        return _process_case(case)
+    except _CaseTimeout:
+        return {"id": case.get("id", "?"), "occurrences": [], "error": "timeout"}
+    finally:
+        signal.setitimer(signal.ITIMER_REAL, 0)
+
+
 def _process_case(case: dict) -> dict:
     case_id = case.get("id", "?")
     try:
@@ -218,7 +251,8 @@ def main() -> None:
     else:
         cases = json.load(sys.stdin)
 
-    results = [_process_case(c) for c in cases]
+    timeout_sec = float(os.environ.get("ORACLE_TIMEOUT_SEC", "0") or "0")
+    results = [_process_case_guarded(c, timeout_sec) for c in cases]
     print(json.dumps(results, ensure_ascii=False, indent=2))
 
 
