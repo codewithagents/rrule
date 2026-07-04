@@ -98,29 +98,37 @@ function formatOccurrence(occ: unknown): string {
 }
 
 // ---------------------------------------------------------------------------
-// Oracle-divergent cases: rrule-ts is RFC-correct; python-dateutil is WRONG.
+// Oracle-divergent cases: rrule-ts applies the strict ISO 8601 Thursday rule
+// for BYWEEKNO year-boundary dates. python-dateutil and rrule.js also include
+// backward-boundary days that belong to the previous ISO week-year.
 //
 // These are NOT in the oracle-derived corpus because comparing against the
 // oracle would produce a false failure. Each case is hand-authored from the
-// RFC 5545 specification with an explanation of why dateutil diverges.
+// RFC 5545 specification with an explanation of where the implementations
+// diverge.
 //
 // Rule: these tests must always pass (green). If they start failing it means
-// the engine regressed to match the (wrong) dateutil behaviour.
+// the engine has drifted from its strict-ISO stance.
 // ---------------------------------------------------------------------------
 
 describe('RFC-correct, oracle-divergent cases', () => {
   it('BYWEEKNO=52 from 2000-01-01: seven days Dec 25-31 2000 only (dateutil also emits Jan 1-2)', () => {
     // FREQ=YEARLY;BYWEEKNO=52, DTSTART=2000-01-01T09:00:00, COUNT=7.
     //
-    // RFC 5545: ISO week 52 of calendar year 2000 starts on Mon 2000-12-25 and
-    // ends on Sun 2000-12-31. Those are the only seven occurrences in year 2000.
+    // ISO 8601 Thursday rule: a week belongs to the year that contains its
+    // Thursday. ISO week 52 of year 2000 starts on Mon 2000-12-25 and ends on
+    // Sun 2000-12-31. Those are the only seven occurrences in year 2000.
     //
-    // python-dateutil BUG: dateutil also emits 2000-01-01 and 2000-01-02 because
-    // it treats those dates as being in "week 52" of the previous ISO year
-    // (ISO 1999 week 52 bleeds into 2000-01-01/02). The RFC is clear that
-    // FREQ=YEARLY with BYWEEKNO=52 must only emit dates whose ISO week 52
-    // belongs to the iteration year (2000). 2000-01-01 and 2000-01-02 are in
-    // ISO week 52 of year 1999, not year 2000, so they must NOT be emitted.
+    // Deliberate divergence: python-dateutil and rrule.js additionally emit
+    // 2000-01-01 and 2000-01-02 because those dates fall within ISO 1999-W52
+    // (the previous ISO year's week 52 extends into the first two days of
+    // calendar year 2000). rrule-ts does NOT emit them: FREQ=YEARLY with
+    // BYWEEKNO=52 iterates the current calendar year (2000), so only dates
+    // whose ISO week-year is 2000 qualify. RFC 5545 defers week numbering to
+    // ISO 8601 but is underspecified at the backward year boundary; rrule-ts
+    // takes the stricter interpretation (ISO week-year must equal the iteration
+    // year). This is a deliberate design choice, not a claim that the other
+    // implementations are incorrect.
     // This test is intentionally NOT generated from the oracle.
 
     const dtLine = 'DTSTART:20000101T090000'

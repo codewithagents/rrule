@@ -107,6 +107,30 @@ This deviation is covered by three documented conformance cases in `packages/con
 | `dst-berlin-spring-daily` | `Europe/Berlin` | 02:00 in spring-forward gap; dateutil: `02:00+01:00`; rrule-ts: `03:00+02:00` |
 | `dst-lord-howe-spring-daily` | `Australia/Lord_Howe` | 02:00 in 30-min gap; dateutil: `02:00+10:30`; rrule-ts: `02:30+11:00` |
 
+## BYWEEKNO year boundary
+
+RFC 5545 defers week numbering to ISO 8601 and its Thursday rule: a week belongs to the
+year that contains its Thursday. rrule-ts applies this rule strictly.
+
+For `FREQ=YEARLY;BYWEEKNO=52` starting from `DTSTART:20000101T090000`, rrule-ts emits
+exactly seven occurrences: Mon 2000-12-25 through Sun 2000-12-31. Those are the only days
+whose ISO week-year is 2000 and whose ISO week number is 52.
+
+python-dateutil and rrule.js additionally emit 2000-01-01 and 2000-01-02. Those two dates
+fall inside ISO 1999-W52 (the previous ISO year's week 52 extends into the first two days
+of calendar year 2000). Including them is a reasonable reading of the specification because
+those days are in "week 52" of some ISO week-year.
+
+rrule-ts takes the stricter interpretation: `FREQ=YEARLY` iterates calendar years, so
+`BYWEEKNO=52` selects only dates whose ISO week-year matches the iteration year. RFC 5545
+does not explicitly resolve this ambiguity at the backward boundary, so both approaches are
+defensible. The rrule-ts divergence is deliberate and documented here; it is not a claim
+that python-dateutil or rrule.js are incorrect.
+
+The differential conformance suite in `packages/conformance/src/diff.test.ts` contains a
+hand-authored test for this case that is intentionally excluded from the oracle-derived
+corpus.
+
 ## License
 
 MIT
