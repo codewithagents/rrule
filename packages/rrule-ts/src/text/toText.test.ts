@@ -9,6 +9,8 @@ import { toText, COMPLEX_RULE_FALLBACK } from './index.js'
 import { en } from '../locales/en.js'
 import { de } from '../locales/de.js'
 import { getTemporal } from '../temporal.js'
+// de.complexRuleFallback is DE-specific: used to assert DE fallback output.
+const DE_FALLBACK = de.complexRuleFallback
 
 // ---------------------------------------------------------------------------
 // EN golden strings
@@ -140,8 +142,12 @@ describe('toText EN: BYMONTHDAY', () => {
     expect(toText({ freq: 'MONTHLY', byMonthDay: [1, 15] })).toBe('every month on the 1st and 15th')
   })
 
-  it('FREQ=MONTHLY;BYMONTHDAY=-2 -> every month on the 2nd-to-last day', () => {
+  it('FREQ=MONTHLY;BYMONTHDAY=-2 -> every month on the 2nd-to-last day (EN)', () => {
     expect(toText({ freq: 'MONTHLY', byMonthDay: [-2] })).toBe('every month on the 2nd-to-last day')
+  })
+
+  it('FREQ=MONTHLY;BYMONTHDAY=-3 -> every month on the 3rd-to-last day (EN)', () => {
+    expect(toText({ freq: 'MONTHLY', byMonthDay: [-3] })).toBe('every month on the 3rd-to-last day')
   })
 })
 
@@ -449,6 +455,18 @@ describe('toText DE: BYMONTHDAY', () => {
       'jeden Monat am 1. und 15.'
     )
   })
+
+  it('FREQ=MONTHLY;BYMONTHDAY=-2 -> jeden Monat am vorletzten Tag (DE)', () => {
+    expect(toText({ freq: 'MONTHLY', byMonthDay: [-2] }, { locale: de })).toBe(
+      'jeden Monat am vorletzten Tag'
+    )
+  })
+
+  it('FREQ=MONTHLY;BYMONTHDAY=-3 -> jeden Monat am 3.-letzten Tag (DE)', () => {
+    expect(toText({ freq: 'MONTHLY', byMonthDay: [-3] }, { locale: de })).toBe(
+      'jeden Monat am 3.-letzten Tag'
+    )
+  })
 })
 
 describe('toText DE: BYMONTH', () => {
@@ -607,8 +625,8 @@ describe('toText DE: formatList (no Oxford comma)', () => {
   })
 })
 
-describe('toText DE: complex rule fallback (locale-independent)', () => {
-  it('BYWEEKNO triggers fallback', () => {
+describe('toText DE: complex rule fallback (locale-specific)', () => {
+  it('BYWEEKNO triggers DE fallback phrase', () => {
     expect(
       toText(
         {
@@ -618,10 +636,14 @@ describe('toText DE: complex rule fallback (locale-independent)', () => {
         },
         { locale: de }
       )
-    ).toBe(COMPLEX_RULE_FALLBACK)
+    ).toBe(DE_FALLBACK)
   })
 
-  it('BYYEARDAY triggers fallback', () => {
-    expect(toText({ freq: 'YEARLY', byYearDay: [1] }, { locale: de })).toBe(COMPLEX_RULE_FALLBACK)
+  it('BYYEARDAY triggers DE fallback phrase', () => {
+    expect(toText({ freq: 'YEARLY', byYearDay: [1] }, { locale: de })).toBe(DE_FALLBACK)
+  })
+
+  it('DE fallback is different from EN fallback', () => {
+    expect(DE_FALLBACK).not.toBe(COMPLEX_RULE_FALLBACK)
   })
 })

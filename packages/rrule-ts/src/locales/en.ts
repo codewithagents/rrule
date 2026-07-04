@@ -133,4 +133,27 @@ export const en: LocalePack = {
     const d = date as Temporal.PlainDate
     return `${EN_MONTHS[d.month - 1]} ${d.day}, ${d.year}`
   },
+
+  formatNthToLastDay(n: number): string {
+    // n is the absolute value (n >= 2).
+    // EN: '2nd-to-last day', '3rd-to-last day', etc.
+    const abs = n
+    const mod100 = abs % 100
+    const mod10 = abs % 10
+    let suffix: string
+    if (mod100 >= 11 && mod100 <= 13) {
+      suffix = 'th'
+    } else if (mod10 === 1) {
+      suffix = 'st'
+    } else if (mod10 === 2) {
+      suffix = 'nd'
+    } else if (mod10 === 3) {
+      suffix = 'rd'
+    } else {
+      suffix = 'th'
+    }
+    return `${abs}${suffix}-to-last day`
+  },
+
+  complexRuleFallback: '(complex recurrence rule)',
 }

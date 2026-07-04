@@ -105,4 +105,19 @@ export interface LocalePack {
    * Temporal.PlainDateTime or Temporal.Instant -> date + time.
    */
   formatDate(date: RRuleUntil): string
+
+  /**
+   * Render a "Nth-to-last day" phrase for negative BYMONTHDAY values below -1.
+   * n is the absolute value (n >= 2). The phrase must be in the target language.
+   * EN: n=2 -> '2nd-to-last day'. DE: n=2 -> 'vorletzten Tag', n=3 -> '3.-letzten Tag'.
+   */
+  formatNthToLastDay(n: number): string
+
+  /**
+   * The phrase returned by toText when a rule cannot be expressed naturally.
+   * Callers who compare against COMPLEX_RULE_FALLBACK should use the EN locale
+   * or compare against locale.complexRuleFallback for the locale they use.
+   * EN: '(complex recurrence rule)'. DE: '(komplexe Wiederholungsregel)'.
+   */
+  complexRuleFallback: string
 }

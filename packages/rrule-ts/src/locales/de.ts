@@ -127,4 +127,14 @@ export const de: LocalePack = {
     const d = date as Temporal.PlainDate
     return `${d.day}. ${DE_MONTHS[d.month - 1]} ${d.year}`
   },
+
+  formatNthToLastDay(n: number): string {
+    // n is the absolute value (n >= 2).
+    // DE: n=2 -> 'vorletzten Tag' (German has a specific word for second-to-last).
+    // n>=3 -> 'N.-letzten Tag' (literal period-ordinal + letzten Tag).
+    if (n === 2) return 'vorletzten Tag'
+    return `${n}.-letzten Tag`
+  },
+
+  complexRuleFallback: '(komplexe Wiederholungsregel)',
 }

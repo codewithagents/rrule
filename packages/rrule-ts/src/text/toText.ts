@@ -16,8 +16,13 @@ import { en } from '../locales/en.js'
 // Constants
 // ---------------------------------------------------------------------------
 
-/** Returned for rules that cannot be phrased naturally in any locale. */
-export const COMPLEX_RULE_FALLBACK = '(complex recurrence rule)'
+/**
+ * Returned (for the EN locale) for rules that cannot be phrased naturally.
+ * Tied to en.complexRuleFallback so string comparisons remain valid when
+ * the EN locale is in use. For other locales, compare against
+ * locale.complexRuleFallback instead.
+ */
+export const COMPLEX_RULE_FALLBACK = en.complexRuleFallback
 
 /**
  * Maps RFC 5545 weekday abbreviation to the LocalePack weekdays array index.
@@ -153,8 +158,9 @@ function buildByMonthDayClause(opts: RRuleOptions, locale: LocalePack): string {
   const items = byMonthDay.map((n) => {
     if (n === -1) return locale.tokens.lastDay
     if (n < -1) {
-      // e.g. -2 -> '2nd-to-last day'
-      return `${locale.formatOrdinal(Math.abs(n))}-to-last day`
+      // Delegate to the locale so non-English locales produce grammatically
+      // correct phrases (e.g. DE: 'vorletzten Tag' for n=-2).
+      return locale.formatNthToLastDay(Math.abs(n))
     }
     return locale.formatOrdinal(n)
   })
@@ -187,7 +193,7 @@ function buildTimeClause(opts: RRuleOptions, locale: LocalePack): string {
  *   Never throws.
  */
 export function toText(options: RRuleOptions, locale: LocalePack = en): string {
-  if (isComplex(options)) return COMPLEX_RULE_FALLBACK
+  if (isComplex(options)) return locale.complexRuleFallback
 
   const parts: string[] = []
 

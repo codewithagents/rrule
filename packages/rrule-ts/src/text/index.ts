@@ -7,9 +7,9 @@
 
 import type { RRuleOptions } from '../types.js'
 import type { Result } from '../result.js'
-import { err } from '../result.js'
 import type { LocalePack } from '../locales/types.js'
 import { toText as buildToText } from './toText.js'
+import { fromText as parseFromText } from './fromText.js'
 
 export type { LocalePack, LocaleTokens } from '../locales/types.js'
 export { COMPLEX_RULE_FALLBACK } from './toText.js'
@@ -50,14 +50,34 @@ export function toText(options: RRuleOptions, textOptions?: TextOptions): string
 }
 
 /**
- * Parse a human-readable recurrence description into RRuleOptions.
+ * Parse a human-readable English recurrence description into RRuleOptions.
  *
- * Currently not implemented. Returns an error result. Full implementation
- * with EN round-trip guarantee is planned for Phase 3.
+ * Accepts only canonical output produced by toText with the EN locale.
+ * Not a general natural-language parser.
  *
- * @stub Phase 3: recursive-descent parser for canonical EN toText output.
+ * fromText is EN-only. There is no locale parameter because DE (and other
+ * locales) parsing is not supported: the parser grammar is tied to the
+ * English strings produced by toText. Passing non-English text returns Err.
+ *
+ * Round-trip guarantee: for all RRuleOptions x where toText(x, {locale: en})
+ * does not return the complex-rule fallback string,
+ * fromText(toText(x, {locale: en})).value deep-equals x
+ * (excluding dtstart, tzid, wkst, bySecond which are absent from text output,
+ * and excluding byMinute=[0] which is indistinguishable from byMinute=undefined).
+ *
+ * Returns Err if the text cannot be parsed as EN toText output.
+ *
+ * Out of scope: BYWEEKNO, BYYEARDAY, BYSECOND, WKST,
+ * multi-value BYSETPOS, free-form prose not produced by toText.
+ *
+ * @example
+ * fromText('every day')
+ * // { ok: true, value: { freq: 'DAILY' } }
+ *
+ * @example
+ * fromText('every week on Monday')
+ * // { ok: true, value: { freq: 'WEEKLY', byDay: [{ weekday: 'MO', ordinal: undefined }] } }
  */
-// v8 ignore next 3
-export function fromText(_text: string, _textOptions?: TextOptions): Result<RRuleOptions, string> {
-  return err('not implemented: fromText (coming in Phase 3)')
+export function fromText(text: string): Result<RRuleOptions, string> {
+  return parseFromText(text)
 }
