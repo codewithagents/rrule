@@ -929,6 +929,83 @@ function weekCandidateDays(
 }
 
 // ---------------------------------------------------------------------------
+// Day-level limit predicate (RFC 5545 Table 1, sub-daily frequencies)
+// ---------------------------------------------------------------------------
+
+/**
+ * Return true when the date components of `dt` pass all active day-level BY*
+ * limits: BYMONTH, BYMONTHDAY, BYDAY (plain weekdays only), and optionally
+ * BYYEARDAY.
+ *
+ * Per RFC 5545 Table 1:
+ *   HOURLY/MINUTELY/SECONDLY: BYMONTH, BYYEARDAY, BYMONTHDAY, BYDAY are all Limit.
+ *   DAILY:                    BYMONTH, BYMONTHDAY, BYDAY are Limit; BYYEARDAY is N/A.
+ *
+ * Pass includeYearDay=true for sub-daily FREQ, false for DAILY.
+ */
+function passesDayLimits(
+  T: typeof Temporal,
+  dt: DT,
+  opts: RRuleOptions,
+  includeYearDay: boolean
+): boolean {
+  const { byMonth, byMonthDay, byDay, byYearDay } = opts
+
+  // BYMONTH: the current month must be in the allowed list.
+  if (byMonth !== undefined && !byMonth.includes(dt.month)) return false
+
+  // BYMONTHDAY: the current day-of-month must appear in the resolved list.
+  if (byMonthDay !== undefined) {
+    let base: Temporal.PlainDate
+    try {
+      base = T.PlainDate.from({ year: dt.year, month: dt.month, day: 1 })
+    } catch {
+      return false
+    }
+    const dim = base.daysInMonth
+    const resolved = byMonthDay.map((md) => resolveMonthDay(md, dim))
+    if (!resolved.includes(dt.day)) return false
+  }
+
+  // BYDAY: check plain weekdays only (ordinals are N/A for sub-daily FREQ).
+  if (byDay !== undefined && byDay.length > 0) {
+    const plainDows = byDay.filter((d) => d.ordinal === undefined)
+    if (plainDows.length > 0) {
+      let dateObj: Temporal.PlainDate
+      try {
+        dateObj = T.PlainDate.from({ year: dt.year, month: dt.month, day: dt.day })
+      } catch {
+        return false
+      }
+      const allowedDows = new Set(plainDows.map((d) => WEEKDAY_TO_ISO[d.weekday]))
+      if (!allowedDows.has(dateObj.dayOfWeek)) return false
+    }
+  }
+
+  // BYYEARDAY: only for sub-daily FREQ (N/A for DAILY per RFC 5545 Table 1).
+  if (includeYearDay && byYearDay !== undefined && byYearDay.length > 0) {
+    let jan1: Temporal.PlainDate
+    try {
+      jan1 = T.PlainDate.from({ year: dt.year, month: 1, day: 1 })
+    } catch {
+      return false
+    }
+    const daysInYear = jan1.daysInYear
+    let currDate: Temporal.PlainDate
+    try {
+      currDate = T.PlainDate.from({ year: dt.year, month: dt.month, day: dt.day })
+    } catch {
+      return false
+    }
+    const dayOfYear = currDate.since(jan1, { largestUnit: 'days' }).days + 1
+    const resolvedYDs = byYearDay.map((yd) => resolveYearDay(yd, daysInYear))
+    if (!resolvedYDs.includes(dayOfYear)) return false
+  }
+
+  return true
+}
+
+// ---------------------------------------------------------------------------
 // Main iterator
 // ---------------------------------------------------------------------------
 
@@ -961,6 +1038,10 @@ export function* iterate(options: RRuleOptions): Generator<RRuleDtstart> {
 
   const dtstartDT = dtFrom(dtstart)
   let count = 0
+
+  // A bounded rule has COUNT or UNTIL: it must not be truncated before completion.
+  // An unbounded rule has neither: use the year-cap safety valve to prevent hangs.
+  const isBounded = options.count !== undefined || options.until !== undefined
 
   // Determine the wkst ISO number (default MO=1)
   const wkstIso = options.wkst !== undefined ? WEEKDAY_TO_ISO[options.wkst] : 1
@@ -1060,8 +1141,10 @@ export function* iterate(options: RRuleOptions): Generator<RRuleDtstart> {
       year = next.year
       month = next.month
 
-      // Stop if we've gone far into the future
-      if (year > dtstartDT.year + 200) break
+      // For unbounded rules: stop after ~200 years to prevent infinite loops on
+      // never-matching rules. Bounded rules (COUNT or UNTIL) rely only on
+      // MAX_MONTHLY_PERIODS so they are never truncated before completing.
+      if (!isBounded && year > dtstartDT.year + 200) break
     }
     return
   }
@@ -1114,7 +1197,7 @@ export function* iterate(options: RRuleOptions): Generator<RRuleDtstart> {
       }
 
       weekStart = weekStart.add({ days: interval * 7 })
-      if (weekStart.year > dtstartDT.year + 200) break
+      if (!isBounded && weekStart.year > dtstartDT.year + 200) break
     }
     return
   }
@@ -1182,7 +1265,7 @@ export function* iterate(options: RRuleOptions): Generator<RRuleDtstart> {
       }
 
       currentDate = currentDate.add({ days: interval })
-      if (currentDate.year > dtstartDT.year + 200) break
+      if (!isBounded && currentDate.year > dtstartDT.year + 200) break
     }
     return
   }
@@ -1200,8 +1283,12 @@ export function* iterate(options: RRuleOptions): Generator<RRuleDtstart> {
     while (count < maxCount && periodCount < MAX_SUBDAILY_PERIODS) {
       periodCount++
 
-      // BYHOUR filter
-      if (byHour === undefined || byHour.includes(currentDT.hour)) {
+      // BYHOUR filter + day-level BY* limits (BYMONTH, BYMONTHDAY, BYDAY, BYYEARDAY)
+      // per RFC 5545 Table 1: all four are Limit for HOURLY.
+      if (
+        (byHour === undefined || byHour.includes(currentDT.hour)) &&
+        passesDayLimits(T, currentDT, options, true)
+      ) {
         const minutes =
           byMinute !== undefined ? [...byMinute].sort((a, b) => a - b) : [dtstartDT.minute]
         const seconds =
@@ -1231,7 +1318,7 @@ export function* iterate(options: RRuleOptions): Generator<RRuleDtstart> {
       // Advance by INTERVAL hours
       const next = advanceDT(currentDT, 'hours', interval)
       currentDT = next
-      if (currentDT.year > dtstartDT.year + 200) break
+      if (!isBounded && currentDT.year > dtstartDT.year + 200) break
     }
     return
   }
@@ -1250,7 +1337,9 @@ export function* iterate(options: RRuleOptions): Generator<RRuleDtstart> {
       const hourMatch = byHour === undefined || byHour.includes(currentDT.hour)
       const minuteMatch = byMinute === undefined || byMinute.includes(currentDT.minute)
 
-      if (hourMatch && minuteMatch) {
+      // Day-level BY* limits (BYMONTH, BYMONTHDAY, BYDAY, BYYEARDAY) per RFC 5545
+      // Table 1: all four are Limit for MINUTELY.
+      if (hourMatch && minuteMatch && passesDayLimits(T, currentDT, options, true)) {
         const seconds =
           bySecond !== undefined ? [...bySecond].sort((a, b) => a - b) : [dtstartDT.second]
         let periodCandidates: RRuleDtstart[] = []
@@ -1274,7 +1363,7 @@ export function* iterate(options: RRuleOptions): Generator<RRuleDtstart> {
 
       const next = advanceDT(currentDT, 'minutes', interval)
       currentDT = next
-      if (currentDT.year > dtstartDT.year + 200) break
+      if (!isBounded && currentDT.year > dtstartDT.year + 200) break
     }
     return
   }
@@ -1294,7 +1383,9 @@ export function* iterate(options: RRuleOptions): Generator<RRuleDtstart> {
       const minuteMatch = byMinute === undefined || byMinute.includes(currentDT.minute)
       const secondMatch = bySecond === undefined || bySecond.includes(currentDT.second)
 
-      if (hourMatch && minuteMatch && secondMatch) {
+      // Day-level BY* limits (BYMONTH, BYMONTHDAY, BYDAY, BYYEARDAY) per RFC 5545
+      // Table 1: all four are Limit for SECONDLY.
+      if (hourMatch && minuteMatch && secondMatch && passesDayLimits(T, currentDT, options, true)) {
         const occ = makeOccurrence(currentDT, dtstart, tzid)
         if (isAtOrAfterDtstart(occ, dtstart)) {
           if (until !== undefined && !isAtOrBeforeUntil(occ, until)) return
@@ -1306,7 +1397,7 @@ export function* iterate(options: RRuleOptions): Generator<RRuleDtstart> {
 
       const next = advanceDT(currentDT, 'seconds', interval)
       currentDT = next
-      if (currentDT.year > dtstartDT.year + 200) break
+      if (!isBounded && currentDT.year > dtstartDT.year + 200) break
     }
     return
   }

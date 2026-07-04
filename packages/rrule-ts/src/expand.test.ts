@@ -1565,3 +1565,241 @@ describe('YEARLY BY* intersection and WKST regression cases', () => {
     ])
   })
 })
+
+// ---------------------------------------------------------------------------
+// RFC 5545 conformance bug regressions.
+//
+// BUG #1: Sub-daily FREQ (HOURLY/MINUTELY/SECONDLY) must apply day-level BY*
+//   limits (BYMONTH, BYMONTHDAY, BYDAY, BYYEARDAY) per RFC 5545 Table 1.
+//   Before the fix the engine emitted occurrences on every day, ignoring
+//   BYMONTHDAY, BYDAY, and BYMONTH entirely for sub-daily rules.
+//
+// BUG #2: A fixed ~200-year scan horizon truncated sparse bounded
+//   (COUNT or UNTIL) rules. Feb 29 every leap year needs ~244 years for
+//   COUNT=60 but the engine stopped at dtstart.year + 200.
+//
+// Expected values are derived from RFC 5545 and verified by hand.
+// ---------------------------------------------------------------------------
+
+describe('RFC conformance bug regressions', () => {
+  // -----------------------------------------------------------------------
+  // BUG #1: HOURLY + BYMONTHDAY (canonical repro from the bug report)
+  // -----------------------------------------------------------------------
+  it('BUG #1 repro: HOURLY;BYHOUR=9;BYMONTHDAY=15;COUNT=6 emits the 15th of each month, not every day', () => {
+    // DTSTART:20240101T000000, RRULE:FREQ=HOURLY;BYHOUR=9;BYMONTHDAY=15;COUNT=6
+    // Before the fix this emitted Jan 1, 2, 3 ... at 09:00 (ignoring BYMONTHDAY).
+    const results = expand({
+      freq: 'HOURLY',
+      count: 6,
+      byHour: [9],
+      byMonthDay: [15],
+      dtstart: pdt(2024, 1, 1, 0),
+    })
+    expect(strs(results)).toEqual([
+      '2024-01-15T09:00:00',
+      '2024-02-15T09:00:00',
+      '2024-03-15T09:00:00',
+      '2024-04-15T09:00:00',
+      '2024-05-15T09:00:00',
+      '2024-06-15T09:00:00',
+    ])
+  })
+
+  // -----------------------------------------------------------------------
+  // BUG #1 sibling: HOURLY + BYDAY
+  // -----------------------------------------------------------------------
+  it('BUG #1 sibling: HOURLY;BYHOUR=9;BYDAY=MO;COUNT=4 emits only Mondays at 09:00', () => {
+    // 2024-01-01 is a Monday.
+    const results = expand({
+      freq: 'HOURLY',
+      count: 4,
+      byHour: [9],
+      byDay: [{ weekday: 'MO', ordinal: undefined }],
+      dtstart: pdt(2024, 1, 1, 9),
+    })
+    expect(strs(results)).toEqual([
+      '2024-01-01T09:00:00',
+      '2024-01-08T09:00:00',
+      '2024-01-15T09:00:00',
+      '2024-01-22T09:00:00',
+    ])
+  })
+
+  // -----------------------------------------------------------------------
+  // BUG #1 sibling: HOURLY + BYMONTH
+  // -----------------------------------------------------------------------
+  it('BUG #1 sibling: HOURLY;BYHOUR=9;BYMONTH=3;COUNT=3 emits only March days at 09:00', () => {
+    const results = expand({
+      freq: 'HOURLY',
+      count: 3,
+      byHour: [9],
+      byMonth: [3],
+      dtstart: pdt(2024, 1, 1, 0),
+    })
+    expect(strs(results)).toEqual([
+      '2024-03-01T09:00:00',
+      '2024-03-02T09:00:00',
+      '2024-03-03T09:00:00',
+    ])
+  })
+
+  // -----------------------------------------------------------------------
+  // BUG #1 sibling: MINUTELY + BYMONTHDAY
+  // Advance 1440 minutes (1 day) each step; BYMONTHDAY=15 restricts to the 15th.
+  // -----------------------------------------------------------------------
+  it('BUG #1 sibling: MINUTELY;INTERVAL=1440;BYMONTHDAY=15;COUNT=3 emits only the 15th', () => {
+    const results = expand({
+      freq: 'MINUTELY',
+      interval: 1440,
+      count: 3,
+      byMonthDay: [15],
+      dtstart: pdt(2024, 1, 1, 0),
+    })
+    expect(strs(results)).toEqual([
+      '2024-01-15T00:00:00',
+      '2024-02-15T00:00:00',
+      '2024-03-15T00:00:00',
+    ])
+  })
+
+  // -----------------------------------------------------------------------
+  // BUG #1 sibling: SECONDLY + BYMONTHDAY
+  // Advance 86400 seconds (1 day) each step; BYMONTHDAY=15 restricts to the 15th.
+  // -----------------------------------------------------------------------
+  it('BUG #1 sibling: SECONDLY;INTERVAL=86400;BYMONTHDAY=15;COUNT=3 emits only the 15th', () => {
+    const results = expand({
+      freq: 'SECONDLY',
+      interval: 86400,
+      count: 3,
+      byMonthDay: [15],
+      dtstart: pdt(2024, 1, 1, 0),
+    })
+    expect(strs(results)).toEqual([
+      '2024-01-15T00:00:00',
+      '2024-02-15T00:00:00',
+      '2024-03-15T00:00:00',
+    ])
+  })
+
+  // -----------------------------------------------------------------------
+  // BUG #1 sibling: MINUTELY + BYMONTH
+  // -----------------------------------------------------------------------
+  it('BUG #1 sibling: MINUTELY;INTERVAL=60;BYHOUR=9;BYMONTH=3;BYMINUTE=0;COUNT=3 emits only March at 09:00', () => {
+    const results = expand({
+      freq: 'MINUTELY',
+      interval: 60,
+      count: 3,
+      byHour: [9],
+      byMonth: [3],
+      byMinute: [0],
+      dtstart: pdt(2024, 1, 1, 0),
+    })
+    expect(strs(results)).toEqual([
+      '2024-03-01T09:00:00',
+      '2024-03-02T09:00:00',
+      '2024-03-03T09:00:00',
+    ])
+  })
+
+  // -----------------------------------------------------------------------
+  // BUG #1 sibling: SECONDLY + BYMONTH
+  // -----------------------------------------------------------------------
+  it('BUG #1 sibling: SECONDLY;INTERVAL=3600;BYHOUR=9;BYMONTH=3;BYSECOND=0;COUNT=3 emits only March at 09:00', () => {
+    const results = expand({
+      freq: 'SECONDLY',
+      interval: 3600,
+      count: 3,
+      byHour: [9],
+      byMonth: [3],
+      bySecond: [0],
+      dtstart: pdt(2024, 1, 1, 0),
+    })
+    expect(strs(results)).toEqual([
+      '2024-03-01T09:00:00',
+      '2024-03-02T09:00:00',
+      '2024-03-03T09:00:00',
+    ])
+  })
+
+  // -----------------------------------------------------------------------
+  // BUG #2: Sparse bounded COUNT rule needs more than 200 years
+  //
+  // Leap years from 2024: 2024, 2028, ..., 2096, 2104, ..., 2196, 2204, ...,
+  // 2268. Century years not divisible by 400 (2100, 2200) are NOT leap.
+  // 60 occurrences span 244 years, exceeding the old 200-year cap.
+  // -----------------------------------------------------------------------
+  it('BUG #2 repro: DAILY;BYMONTH=2;BYMONTHDAY=29;COUNT=60 returns all 60 leap-year Feb 29s (not just 49)', () => {
+    // Before the fix the engine returned only 49 (stopping at 2224-02-29 = dtstart.year + 200).
+    const results = expand({
+      freq: 'DAILY',
+      count: 60,
+      byMonth: [2],
+      byMonthDay: [29],
+      dtstart: pdt(2024, 2, 29, 9),
+    })
+    expect(results).toHaveLength(60)
+    expect(strs(results)[0]).toBe('2024-02-29T09:00:00')
+    expect(strs(results)[59]).toBe('2268-02-29T09:00:00')
+  })
+
+  // -----------------------------------------------------------------------
+  // BUG #2 sibling: smaller COUNT to show the first few leap-year Feb 29s
+  // -----------------------------------------------------------------------
+  it('BUG #2 sibling: DAILY;BYMONTH=2;BYMONTHDAY=29;COUNT=5 returns the first 5 leap years', () => {
+    // 2024, 2028, 2032, 2036, 2040 are the first five leap years from 2024.
+    const results = expand({
+      freq: 'DAILY',
+      count: 5,
+      byMonth: [2],
+      byMonthDay: [29],
+      dtstart: pdt(2024, 2, 29, 9),
+    })
+    expect(strs(results)).toEqual([
+      '2024-02-29T09:00:00',
+      '2028-02-29T09:00:00',
+      '2032-02-29T09:00:00',
+      '2036-02-29T09:00:00',
+      '2040-02-29T09:00:00',
+    ])
+  })
+
+  // -----------------------------------------------------------------------
+  // BUG #2 sibling: high-INTERVAL daily rule stays within the horizon
+  // -----------------------------------------------------------------------
+  it('BUG #2 sibling: DAILY;INTERVAL=365;COUNT=5 does not hit the year cap prematurely', () => {
+    // Advancing 365 days at a time from 2024-01-01 (a leap year):
+    // Jan 1, 2024 + 365 = Dec 31, 2024
+    // Dec 31, 2024 + 365 = Dec 31, 2025
+    // Dec 31, 2025 + 365 = Dec 31, 2026
+    // Dec 31, 2026 + 365 = Dec 31, 2027
+    const results = expand({
+      freq: 'DAILY',
+      interval: 365,
+      count: 5,
+      dtstart: pdt(2024, 1, 1, 9),
+    })
+    expect(results).toHaveLength(5)
+    expect(strs(results)[0]).toBe('2024-01-01T09:00:00')
+    expect(strs(results)[4]).toBe('2027-12-31T09:00:00')
+  })
+
+  // -----------------------------------------------------------------------
+  // Unbounded never-matching rule must terminate quickly via the horizon guard
+  // -----------------------------------------------------------------------
+  it('never-matching unbounded rule terminates without hanging', () => {
+    // FREQ=DAILY;BYMONTH=2;BYMONTHDAY=30: Feb never has day 30, so this
+    // rule produces no occurrences. With no COUNT and no UNTIL the engine
+    // must self-terminate via the year-cap safety valve (not run forever).
+    const t0 = Date.now()
+    const results = expand({
+      freq: 'DAILY',
+      byMonth: [2],
+      byMonthDay: [30],
+      dtstart: pdt(2024, 1, 1, 0),
+    })
+    const elapsed = Date.now() - t0
+    expect(results).toHaveLength(0)
+    // Must complete in well under 10 seconds (typically < 100 ms).
+    expect(elapsed).toBeLessThan(10000)
+  })
+})
