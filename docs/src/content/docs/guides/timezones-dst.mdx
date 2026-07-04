@@ -5,6 +5,8 @@ description: Why Temporal makes DST-correct expansion possible, the four dtstart
 
 import { Aside } from '@astrojs/starlight/components'
 
+This guide explains how rrule-ts handles daylight saving time transitions: the wall-clock semantics it applies, the four dtstart types, and the documented spring-forward deviation from python-dateutil.
+
 Daylight saving time transitions create two classes of problems for RRULE expansion:
 
 - **Spring-forward gaps.** Clocks skip an hour. A computed local time like 02:30 does not exist on

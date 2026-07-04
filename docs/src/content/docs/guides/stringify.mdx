@@ -39,8 +39,8 @@ stringify({
 // 'RRULE:FREQ=WEEKLY;COUNT=10;BYDAY=MO,WE,FR'
 ```
 
-Note that `COUNT` appears before `BYDAY` in the output regardless of the order the fields appear in
-the `options` object, because `stringify` always uses the canonical order.
+`COUNT` appears before `BYDAY` in the output regardless of the order the fields appear in
+the `options` object: `stringify` always uses the canonical order.
 
 ## BYDAY serialization
 
@@ -118,7 +118,7 @@ And for all valid RRULE strings that `parse()` accepts:
 stringify(parse(s).value!) === stringify(parse(stringify(parse(s).value!)).value!)
 ```
 
-In practice: stringifying is idempotent. Once a value has been parsed and stringified, stringifying
+Stringifying is idempotent: once a value has been parsed and stringified, stringifying
 the result again produces the same string.
 
 ## stringify vs toText

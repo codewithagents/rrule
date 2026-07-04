@@ -5,6 +5,8 @@ description: ISO 8601 week numbering, the year-boundary edge case, rrule-ts's st
 
 import { Aside } from '@astrojs/starlight/components'
 
+This guide covers the `BYWEEKNO` rule part: how ISO 8601 week numbering works, the year-boundary edge case, and where rrule-ts deliberately diverges from python-dateutil and rrule.js.
+
 `BYWEEKNO` selects occurrences by ISO 8601 week number within a `FREQ=YEARLY` rule. It looks
 straightforward but has a well-known edge case at the calendar year boundary: the ISO week year
 does not always match the calendar year.

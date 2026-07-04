@@ -1,6 +1,6 @@
 ---
 title: toText and fromText
-description: Human-readable rendering of RRuleOptions via the rrule-ts/text tree-shakeable subpath. toText never throws; complex rules render a fallback phrase. fromText parses English only and returns a Result.
+description: Converting RRuleOptions to natural-language strings with toText() and parsing them back with fromText(), both from the rrule-ts/text subpath.
 ---
 
 import { Aside } from '@astrojs/starlight/components'
@@ -8,7 +8,7 @@ import { Aside } from '@astrojs/starlight/components'
 `toText()` converts `RRuleOptions` to a human-readable string. `fromText()` parses a
 human-readable English string back to `Result<RRuleOptions, string>`.
 
-Both functions live in a separate subpath so bundles only include them when imported:
+Both functions live in a separate subpath and are excluded from bundles that do not import them:
 
 ```ts
 import { toText, fromText } from 'rrule-ts/text'
@@ -128,7 +128,7 @@ toText({ freq: 'DAILY', byHour: [9], byMinute: [30] })
 
 ### Complex rule fallback
 
-Rules that cannot be expressed naturally return the fallback phrase. Never throw.
+Rules that cannot be expressed naturally return the fallback phrase instead of throwing.
 
 ```ts
 toText({ freq: 'YEARLY', byWeekNo: [10] })

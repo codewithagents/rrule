@@ -5,6 +5,8 @@ description: The LocalePack contract, bundled English and German locale packs, G
 
 import { Aside } from '@astrojs/starlight/components'
 
+This guide covers the locale system for `toText()`: the built-in English and German packs, how to pass a locale, and how to implement a custom locale.
+
 Locale packs control the language used by `toText()`. Each locale is a separate subpath import,
 so bundles only include the locales they use: importing `rrule-ts/locales/de` without using it
 adds zero bytes to a bundle that tree-shakes.
