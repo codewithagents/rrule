@@ -1,0 +1,73 @@
+---
+title: BYWEEKNO and Year Boundaries
+description: ISO 8601 week numbering, the year-boundary edge case, rrule-ts stance, and comparison with rrule.js.
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+`BYWEEKNO` selects occurrences by ISO 8601 week number. This looks straightforward but has a
+well-known edge case: the ISO week year does not always match the calendar year.
+
+## ISO 8601 week numbering
+
+ISO 8601 defines week 1 as the week containing the first Thursday of the year. This means:
+
+- Days in late December can belong to week 1 of the **next** calendar year.
+- Days in early January can belong to week 52 or 53 of the **previous** calendar year.
+
+For example, 2024-12-30 (a Monday) belongs to ISO week 1 of 2025.
+
+## Year-boundary behavior in BYWEEKNO
+
+When a `YEARLY` rule with `BYWEEKNO=1` expands, the question is: does the occurrence fall on the
+days of week 1 that belong to the previous calendar year?
+
+rrule-ts documents its stance explicitly: occurrences are generated for the days that ISO week 1
+contains, even when those days fall in December of the previous calendar year. This matches the
+python-dateutil oracle behavior that the conformance suite verifies against.
+
+<Aside type="note" title="Known divergence from rrule.js">
+  rrule.js and rrule-ts produce different results for BYWEEKNO year-boundary cases. The conformance
+  suite documents these divergences explicitly. rrule-ts follows python-dateutil (the primary ground
+  truth) where the two differ.
+</Aside>
+
+## WKST interaction
+
+The `WKST` field shifts which day starts the week. This affects where week boundaries fall and,
+consequently, which days belong to which ISO week number.
+
+For example, with `WKST=SU` (week starts Sunday), the week structure differs from the default
+`WKST=MO`.
+
+```ts
+// BYWEEKNO with explicit week start
+{
+  freq: 'YEARLY',
+  byWeekNo: [1],
+  wkst: 'SU',  // weeks start on Sunday
+}
+```
+
+## BYWEEKNO is YEARLY-only
+
+RFC 5545 restricts `BYWEEKNO` to `FREQ=YEARLY`. Using it with other frequencies is a validation
+error. `validate()` reports this with ruleId `BYWEEKNO_YEARLY_ONLY`.
+
+## Negative BYWEEKNO values
+
+Negative values select weeks from the end of the year: `-1` is the last ISO week of the year
+(week 52 or 53 depending on the year).
+
+```ts
+{
+  freq: 'YEARLY',
+  byWeekNo: [-1],  // last week of the year
+}
+```
+
+## Conformance
+
+The conformance corpus includes BYWEEKNO edge cases with year-boundary verification against
+python-dateutil. See the [Differential conformance suite](/conformance/differential-suite) for
+the full methodology.

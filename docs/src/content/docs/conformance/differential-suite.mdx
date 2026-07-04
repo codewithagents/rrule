@@ -1,0 +1,124 @@
+---
+title: Differential Conformance Suite
+description: The project signature trust artifact. Three-way oracle design, corpus statistics, CI hermeticity, and feature matrix.
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+The conformance suite is the primary trust artifact for rrule-ts. Every expansion result is
+compared against ground-truth oracles, so behavior is provably correct and not just tested in
+isolation.
+
+## Three-way oracle design
+
+The suite uses three oracles:
+
+1. **python-dateutil 2.9.0.post0** (primary ground truth). python-dateutil is the reference
+   implementation used by major calendar software including GNOME Calendar and KDE PIM. Its
+   behavior on RFC 5545 cases is treated as authoritative.
+
+2. **rrule.js** (known-divergence reference). rrule.js is the dominant JavaScript RRULE library.
+   It is used as a reference to document where rrule-ts and rrule.js deliberately differ, and
+   why.
+
+3. **rrule-ts itself** (subject under test). Each expansion result from rrule-ts is compared
+   against the dateutil output in the corpus.
+
+## Corpus structure
+
+The corpus is committed to `packages/conformance/corpus/corpus.json`. It is hermetic: CI does not
+require Python to run the conformance tests. Python is only needed when regenerating the corpus
+after adding new cases.
+
+**Corpus coverage:**
+
+| Category                                         | Cases    |
+| ------------------------------------------------ | -------- |
+| All 7 FREQ values (SECONDLY through YEARLY)      | Covered  |
+| BYSETPOS-last (-1)                               | Covered  |
+| Ordinal BYDAY (e.g. -1FR, 2MO)                   | Covered  |
+| Negative BYMONTHDAY                              | Covered  |
+| BYYEARDAY                                        | Covered  |
+| BYWEEKNO with year-boundary                      | Covered  |
+| Sub-day frequencies (SECONDLY, MINUTELY, HOURLY) | Covered  |
+| RFC 5545 section 3.8.5.3 worked examples         | 30 cases |
+| DST edge cases across 4 timezone families        | 16 cases |
+
+**Timezone families in the DST corpus:**
+
+| Timezone            | DST characteristic                                     |
+| ------------------- | ------------------------------------------------------ |
+| America/Los_Angeles | 60-minute spring-forward (March)                       |
+| Europe/Berlin       | 60-minute spring-forward (March) / fall-back (October) |
+| Australia/Lord_Howe | 30-minute DST offset                                   |
+| Pacific/Apia        | UTC+13/+14, date-line crossing                         |
+
+## CI hermeticity
+
+Because the corpus is committed JSON, the CI test suite runs without any Python dependency. The
+conformance tests read `corpus.json`, expand each case with rrule-ts, and assert that the output
+matches the committed python-dateutil ground truth.
+
+To regenerate the corpus after adding new cases, run the Python oracle script locally:
+
+```bash
+pnpm --filter rrule-ts-conformance fuzz
+```
+
+<Aside type="note" title="Corpus regeneration requires Python">
+  Regenerating the corpus requires Python 3.x with python-dateutil installed. CI does not require
+  Python because the corpus is pre-committed. Only the corpus maintainer (Benjamin) regenerates it.
+</Aside>
+
+## Feature matrix
+
+| Feature                      | rrule-ts | rrule.js | Notes                         |
+| ---------------------------- | -------- | -------- | ----------------------------- |
+| FREQ: SECONDLY               | Yes      | Yes      |                               |
+| FREQ: MINUTELY               | Yes      | Yes      |                               |
+| FREQ: HOURLY                 | Yes      | Yes      |                               |
+| FREQ: DAILY                  | Yes      | Yes      |                               |
+| FREQ: WEEKLY                 | Yes      | Yes      |                               |
+| FREQ: MONTHLY                | Yes      | Yes      |                               |
+| FREQ: YEARLY                 | Yes      | Yes      |                               |
+| COUNT                        | Yes      | Yes      |                               |
+| UNTIL                        | Yes      | Yes      |                               |
+| INTERVAL                     | Yes      | Yes      |                               |
+| BYDAY (plain)                | Yes      | Yes      |                               |
+| BYDAY (ordinal)              | Yes      | Partial  | rrule.js has known edge cases |
+| BYMONTH                      | Yes      | Yes      |                               |
+| BYMONTHDAY (negative)        | Yes      | Partial  |                               |
+| BYYEARDAY                    | Yes      | Partial  |                               |
+| BYWEEKNO                     | Yes      | Partial  | Year-boundary diverges        |
+| BYSETPOS                     | Yes      | Yes      |                               |
+| BYHOUR / BYMINUTE / BYSECOND | Yes      | Yes      |                               |
+| WKST                         | Yes      | Partial  |                               |
+| Temporal-native DST handling | Yes      | No       |                               |
+| ZonedDateTime output         | Yes      | No       |                               |
+| Tree-shakeable subpaths      | Yes      | No       |                               |
+| Zero runtime dependencies    | Yes      | No       |                               |
+
+## Known divergences from rrule.js
+
+Where rrule-ts and rrule.js produce different results, the conformance suite documents the
+divergence with a rationale. In all known cases, rrule-ts follows the python-dateutil behavior
+(which is the RFC 5545 ground truth).
+
+Key divergences:
+
+- **BYWEEKNO year boundaries.** rrule.js and rrule-ts differ on whether days in late December
+  that belong to ISO week 1 of the next year are included. rrule-ts follows dateutil. See the
+  [BYWEEKNO guide](/guides/byweekno).
+
+- **Negative BYMONTHDAY with MONTHLY FREQ.** Edge cases around negative day values at month
+  boundaries produce different results. rrule-ts follows dateutil.
+
+- **DST gap handling.** rrule.js uses `Date` and does not handle spring-forward gaps correctly.
+  rrule-ts uses `Temporal.ZonedDateTime` with explicit disambiguation.
+
+## Source
+
+The conformance package lives in `packages/conformance/` in the repository. The corpus, oracle
+script, and seeded test cases are all there.
+
+[View on GitHub](https://github.com/codewithagents/rrule/tree/main/packages/conformance)

@@ -2,5 +2,6 @@
 **/generated/**
 **/node_modules/**
 **/test-results/**
+**/.astro/**
 **/*.md
 pnpm-lock.yaml

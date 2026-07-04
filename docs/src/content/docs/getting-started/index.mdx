@@ -1,0 +1,65 @@
+---
+title: Introduction
+description: What rrule-ts is, the Temporal-native design, and how to install and set up the library.
+---
+
+import { Aside } from '@astrojs/starlight/components'
+import { PackageManagers } from 'starlight-package-managers'
+
+**rrule-ts** is an RFC 5545 recurrence rule (RRULE) library for TypeScript. It provides:
+
+- `parse()`: convert an RRULE string to a typed `RRuleOptions` object
+- `validate()`: enforce RFC 5545 cross-field rules, returning all errors with stable rule IDs
+- `stringify()`: convert `RRuleOptions` back to a canonical RRULE string
+- `expand()` / `iterate()`: generate the occurrence sequence as Temporal date/datetime values
+- `RRuleSet`: combine RRULE, RDATE, EXRULE, and EXDATE into a single merged sequence
+- `toText()` / `fromText()`: human-readable rendering (tree-shakeable subpath)
+
+## Temporal-native design
+
+rrule-ts is built on the [TC39 Temporal proposal](https://tc39.es/proposal-temporal/), the modern
+datetime API now shipping natively in Node.js 26 and modern browsers.
+
+Existing RRULE libraries rely on `Date`, moment.js, or custom date math. This causes known
+failures at DST transitions (spring-forward gaps, fall-back ambiguities), and requires workarounds
+for timezone-aware expansion. Temporal resolves these issues by design: every date/time operation
+has explicit semantics.
+
+rrule-ts reads `globalThis.Temporal` when available. When it is not (Node 22 and below), it uses
+any Temporal implementation injected via `setTemporal()`. No polyfill is bundled, so library size
+stays near zero.
+
+## Installation
+
+<PackageManagers pkg="rrule-ts" />
+
+## Polyfill setup (Node versions below 26)
+
+On Node.js 22 and below, inject a Temporal polyfill before calling any expansion function:
+
+```ts
+import { setTemporal } from 'rrule-ts'
+import { Temporal } from 'temporal-polyfill'
+
+setTemporal(Temporal)
+```
+
+Install the polyfill separately:
+
+<PackageManagers pkg="temporal-polyfill" />
+
+<Aside type="note" title="Node version compatibility">
+  Node 22 uses the polyfill path. Node 26 and above use native `globalThis.Temporal` automatically.
+  The library itself is tested on both in CI.
+</Aside>
+
+## On Node 26 and above
+
+No setup is required. `globalThis.Temporal` is available natively and rrule-ts picks it up
+automatically.
+
+## What comes next
+
+- [Quickstart](/getting-started/quickstart): a working end-to-end example in 15 lines
+- [Parsing guide](/guides/parsing): all input formats, the `Result` type, and `RRuleOptions` shape
+- [Validation guide](/guides/validation): all stable rule IDs and how to use them in error maps

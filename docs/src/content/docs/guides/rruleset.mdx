@@ -1,0 +1,83 @@
+---
+title: RRuleSet
+description: Combine RRULE, RDATE, EXRULE, and EXDATE into a single chronologically merged occurrence sequence.
+---
+
+`RRuleSet` combines multiple recurrence sources into a single, chronologically ordered sequence.
+Use it when a single RRULE is not sufficient: for example, a recurring meeting with a specific
+occurrence cancelled, or a one-off addition outside the rule.
+
+## API overview
+
+```ts
+import { RRuleSet } from 'rrule-ts'
+
+const set = new RRuleSet()
+
+// Add a recurrence rule (can call multiple times)
+set.addRRule(rruleOptions)
+
+// Add a single extra date (RDATE)
+set.addRDate(temporalDate)
+
+// Exclude all occurrences matching a rule (EXRULE)
+set.addExRule(rruleOptions)
+
+// Exclude a specific date (EXDATE)
+set.addExDate(temporalDate)
+
+// Expand the full merged sequence
+const dates = set.expand({ limit: 100 })
+
+// Or iterate lazily
+for await (const date of set.iterate({ limit: 100 })) {
+  // ...
+}
+```
+
+## Use cases
+
+**Cancel a specific occurrence (EXDATE)**
+
+```ts
+const set = new RRuleSet()
+set.addRRule({ freq: 'WEEKLY', byDay: [{ weekday: 'MO' }], count: 10 })
+set.addExDate(Temporal.PlainDate.from('2024-01-08'))
+// The occurrence on 2024-01-08 is excluded from the result
+```
+
+**Add a one-off date outside the rule (RDATE)**
+
+```ts
+const set = new RRuleSet()
+set.addRRule({ freq: 'WEEKLY', byDay: [{ weekday: 'MO' }], count: 5 })
+set.addRDate(Temporal.PlainDate.from('2024-01-10'))
+// 2024-01-10 (a Wednesday) is included alongside the Monday occurrences
+```
+
+**Multiple rules merged (RRULE + RRULE)**
+
+```ts
+const set = new RRuleSet()
+set.addRRule({ freq: 'WEEKLY', byDay: [{ weekday: 'MO' }], count: 5 })
+set.addRRule({ freq: 'WEEKLY', byDay: [{ weekday: 'WE' }], count: 5 })
+// Occurrences from both rules are merged in chronological order
+```
+
+## Result ordering
+
+Occurrences from all RRULE and RDATE sources are merged and returned in chronological order.
+
+## Deduplication
+
+If the same datetime appears from multiple sources (for example, two rules that both generate an
+occurrence on the same day), it appears only once in the result.
+
+## iCalendar mapping
+
+| iCalendar component | RRuleSet method      |
+| ------------------- | -------------------- |
+| `RRULE`             | `addRRule(options)`  |
+| `RDATE`             | `addRDate(date)`     |
+| `EXRULE`            | `addExRule(options)` |
+| `EXDATE`            | `addExDate(date)`    |

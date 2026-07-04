@@ -1,0 +1,120 @@
+---
+title: Parsing
+description: The parse() function, all accepted input formats, the Result type, and the full RRuleOptions shape.
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+`parse()` converts an RRULE string into a typed `RRuleOptions` object. It returns a `Result` and
+never throws on user input, even for completely malformed strings.
+
+## Accepted input formats
+
+`parse()` accepts four input forms:
+
+**Bare RRULE value** (no prefix):
+
+```
+FREQ=WEEKLY;BYDAY=MO,WE,FR;COUNT=10
+```
+
+**RRULE: prefixed string** (most common):
+
+```
+RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR;COUNT=10
+```
+
+**Multi-line iCalendar block** (with DTSTART content line):
+
+```
+DTSTART;TZID=America/New_York:20240101T090000
+RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR;COUNT=10
+```
+
+**DTSTART with UTC marker**:
+
+```
+DTSTART:20240101T090000Z
+RRULE:FREQ=DAILY;COUNT=5
+```
+
+## The Result type
+
+```ts
+type Result<T, E> = { ok: true; value: T } | { ok: false; error: E }
+```
+
+`parse()` returns `Result<RRuleOptions, string>`. Check `result.ok` before accessing `result.value`.
+
+## The RRuleOptions shape
+
+All fields are optional except those implied by the input:
+
+```ts
+interface RRuleOptions {
+  freq: Frequency // 'SECONDLY' | 'MINUTELY' | 'HOURLY' | 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY'
+  interval?: number // default 1
+  count?: number // terminate after N occurrences
+  until?: RRuleUntil // terminate at date/datetime
+  wkst?: Weekday // week start day, default 'MO'
+  byMonth?: number[] // 1-12
+  byMonthDay?: number[] // 1-31, or -1 to -31 (negative = from end)
+  byDay?: WeekdayNum[] // e.g. [{ weekday: 'MO' }, { n: 2, weekday: 'TU' }]
+  byYearDay?: number[] // 1-366, or negative
+  byWeekNo?: number[] // 1-53 ISO week numbers, or negative
+  byHour?: number[] // 0-23
+  byMinute?: number[] // 0-59
+  bySecond?: number[] // 0-60
+  bySetPos?: number[] // filter within the set, e.g. -1 = last
+  dtstart?: RRuleDtstart // start date/time as a Temporal type
+  tzid?: string // IANA timezone identifier
+}
+```
+
+## WeekdayNum ordinal syntax
+
+Ordinal weekday values like `3MO` (third Monday) and `-1FR` (last Friday) are parsed into a
+`WeekdayNum` object:
+
+```ts
+interface WeekdayNum {
+  weekday: Weekday // 'MO' | 'TU' | 'WE' | 'TH' | 'FR' | 'SA' | 'SU'
+  n?: number // ordinal, positive or negative
+}
+```
+
+For example, `BYDAY=2MO,-1FR` parses to:
+
+```ts
+byDay: [
+  { weekday: 'MO', n: 2 },
+  { weekday: 'FR', n: -1 },
+]
+```
+
+## Temporal types for dtstart
+
+The type of `dtstart` depends on the DTSTART form in the input:
+
+| Input form                                      | `dtstart` type           |
+| ----------------------------------------------- | ------------------------ |
+| `DTSTART:20240101` (date only)                  | `Temporal.PlainDate`     |
+| `DTSTART:20240101T090000` (floating)            | `Temporal.PlainDateTime` |
+| `DTSTART:20240101T090000Z` (UTC)                | `Temporal.Instant`       |
+| `DTSTART;TZID=America/New_York:20240101T090000` | `Temporal.ZonedDateTime` |
+
+## Temporal types for until
+
+`RRuleUntil` follows the same pattern:
+
+| UNTIL form               | Type                     |
+| ------------------------ | ------------------------ |
+| `UNTIL=20240101`         | `Temporal.PlainDate`     |
+| `UNTIL=20240101T090000`  | `Temporal.PlainDateTime` |
+| `UNTIL=20240101T090000Z` | `Temporal.Instant`       |
+
+<Aside type="note" title="parse() is permissive">
+  `parse()` does not enforce cross-field semantic rules. For example, it accepts both `COUNT` and
+  `UNTIL` in the same rule even though RFC 5545 forbids this combination. Use `validate()` after
+  `parse()` to enforce RFC rules. See the [Validation guide](/guides/validation).
+</Aside>

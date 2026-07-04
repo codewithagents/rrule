@@ -1,0 +1,103 @@
+---
+title: Quickstart
+description: Go from a RRULE string to validated, expanded occurrences in minutes.
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+This guide walks through a complete example: parse an RRULE string, check the result, validate the
+parsed options, check the validation errors, and stringify back to canonical form.
+
+## Parse a RRULE string
+
+```ts
+import { parse } from 'rrule-ts'
+
+const result = parse('RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR;COUNT=10')
+```
+
+`parse()` returns a `Result` type. It never throws on user input.
+
+```ts
+if (!result.ok) {
+  // result.error is a string describing what went wrong
+  console.error(result.error)
+  process.exit(1)
+}
+
+// result.value is RRuleOptions
+const options = result.value
+console.log(options.freq) // 'WEEKLY'
+console.log(options.byDay) // [{ weekday: 'MO' }, { weekday: 'WE' }, { weekday: 'FR' }]
+console.log(options.count) // 10
+```
+
+## Validate the parsed options
+
+`parse()` is permissive on cross-field constraints. `validate()` enforces RFC 5545 semantic rules
+and returns every error, not just the first.
+
+```ts
+import { validate } from 'rrule-ts'
+
+const validation = validate(result.value)
+
+if (!validation.ok) {
+  for (const e of validation.error) {
+    // e.ruleId is a stable machine-readable identifier
+    // e.field is the field that failed
+    // e.message is a human-readable description
+    console.error(`${e.ruleId}: ${e.message}`)
+  }
+  process.exit(1)
+}
+
+// validation.value is the same RRuleOptions, confirmed valid
+```
+
+## Stringify back to canonical form
+
+```ts
+import { stringify } from 'rrule-ts'
+
+const canonical = stringify(validation.value)
+console.log(canonical)
+// RRULE:FREQ=WEEKLY;COUNT=10;BYDAY=MO,WE,FR
+```
+
+`stringify()` always outputs parts in a canonical order and always includes the `RRULE:` prefix.
+
+## Putting it together
+
+```ts
+import { parse, validate, stringify } from 'rrule-ts'
+
+const result = parse('RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR;COUNT=10')
+if (!result.ok) {
+  console.error(result.error)
+  process.exit(1)
+}
+
+const validation = validate(result.value)
+if (!validation.ok) {
+  for (const e of validation.error) {
+    console.error(`${e.ruleId}: ${e.message}`)
+  }
+  process.exit(1)
+}
+
+console.log(stringify(validation.value))
+// RRULE:FREQ=WEEKLY;COUNT=10;BYDAY=MO,WE,FR
+```
+
+<Aside type="tip" title="The Result pattern">
+Every function that can fail returns `Result<T, E>` rather than throwing. Check `result.ok` before
+accessing `result.value`. This makes error handling explicit at the call site and avoids unexpected
+exceptions in production.
+</Aside>
+
+## What comes next
+
+- [Parsing guide](/guides/parsing): all input formats `parse()` accepts, and the full `RRuleOptions` shape
+- [Validation guide](/guides/validation): all stable rule IDs and how to use them for translations or error maps
+- [Expansion guide](/guides/expansion): generate occurrence sequences with `expand()` and `iterate()`

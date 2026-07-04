@@ -1,0 +1,62 @@
+---
+title: i18n Locales
+description: Built-in locale packs for toText and fromText, the Locale interface, and how to write a custom locale.
+---
+
+Locale packs control the language used by `toText()` and `fromText()`. Each locale is a separate
+subpath import so bundles only include the locales they use.
+
+## Built-in locales
+
+| Subpath               | Language          |
+| --------------------- | ----------------- |
+| `rrule-ts/locales/en` | English (default) |
+| `rrule-ts/locales/de` | German            |
+
+## Importing a locale
+
+```ts
+import { toText } from 'rrule-ts/text'
+import de from 'rrule-ts/locales/de'
+
+toText({ freq: 'DAILY', count: 7 }, de)
+// 'jeden Tag 7 Mal'
+```
+
+```ts
+import en from 'rrule-ts/locales/en'
+
+toText({ freq: 'DAILY', count: 7 }, en)
+// 'every day for 7 times'
+```
+
+## The Locale interface
+
+To write a custom locale, implement the `Locale` interface from `rrule-ts/locales/types`:
+
+```ts
+import type { Locale } from 'rrule-ts/locales/types'
+```
+
+The interface defines the strings and formatting functions needed to render each RRULE component in
+a given language. Import the English locale as a reference implementation.
+
+## Custom locale example
+
+```ts
+import type { Locale } from 'rrule-ts/locales/types'
+
+const fr: Locale = {
+  // implement all required fields
+  // see rrule-ts/locales/en for the full contract
+}
+
+import { toText } from 'rrule-ts/text'
+toText(options, fr)
+```
+
+## Locale coverage
+
+English and German ship in the v0.x series. The `Locale` interface is stable for third-party packs.
+Additional built-in locales may be added in future releases. Contributions are welcome via the
+[GitHub repository](https://github.com/codewithagents/rrule).

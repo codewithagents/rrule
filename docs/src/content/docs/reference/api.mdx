@@ -1,0 +1,73 @@
+---
+title: API Surface
+description: Complete hand-written reference for all public exports, grouped by subpath.
+---
+
+All public exports are grouped by subpath. Import from the subpath that contains the symbol you
+need. Each subpath is independently tree-shakeable.
+
+## Core: `import ... from 'rrule-ts'`
+
+### Functions
+
+| Symbol        | Signature                                                              | Returns                 | Guide                             |
+| ------------- | ---------------------------------------------------------------------- | ----------------------- | --------------------------------- |
+| `parse`       | `(input: string) => Result<RRuleOptions, string>`                      | `Result`                | [Parsing](/guides/parsing)        |
+| `validate`    | `(options: RRuleOptions) => Result<RRuleOptions, ValidationError[]>`   | `Result`                | [Validation](/guides/validation)  |
+| `stringify`   | `(options: RRuleOptions) => string`                                    | `string`                | [Stringifying](/guides/stringify) |
+| `expand`      | `(options: RRuleOptions, opts?: ExpandOptions) => Temporal date array` | array                   | [Expansion](/guides/expansion)    |
+| `iterate`     | `(options: RRuleOptions, opts?: ExpandOptions) => AsyncGenerator`      | async generator         | [Expansion](/guides/expansion)    |
+| `getTemporal` | `() => typeof Temporal`                                                | Temporal implementation |                                   |
+| `setTemporal` | `(impl: typeof Temporal) => void`                                      | `void`                  | [Introduction](/getting-started)  |
+| `ok`          | `<T>(value: T) => Ok<T>`                                               | `Ok<T>`                 |                                   |
+| `err`         | `<E>(error: E) => Err<E>`                                              | `Err<E>`                |                                   |
+
+### Classes
+
+| Symbol     | Description                              | Guide                        |
+| ---------- | ---------------------------------------- | ---------------------------- |
+| `RRuleSet` | Combine RRULE, RDATE, EXRULE, and EXDATE | [RRuleSet](/guides/rruleset) |
+
+### Types
+
+| Symbol            | Description                                                                            |
+| ----------------- | -------------------------------------------------------------------------------------- |
+| `Result<T, E>`    | `Ok<T> \| Err<E>`                                                                      |
+| `Ok<T>`           | `{ ok: true; value: T }`                                                               |
+| `Err<E>`          | `{ ok: false; error: E }`                                                              |
+| `RRuleOptions`    | Full parsed RRULE options object                                                       |
+| `RRuleDtstart`    | Union of all valid dtstart Temporal types                                              |
+| `RRuleUntil`      | Union of all valid until Temporal types                                                |
+| `ExpandOptions`   | `{ limit?: number; maxDate?: ... }`                                                    |
+| `ValidationError` | `{ field: string; ruleId: string; message: string }`                                   |
+| `Frequency`       | `'SECONDLY' \| 'MINUTELY' \| 'HOURLY' \| 'DAILY' \| 'WEEKLY' \| 'MONTHLY' \| 'YEARLY'` |
+| `Weekday`         | `'MO' \| 'TU' \| 'WE' \| 'TH' \| 'FR' \| 'SA' \| 'SU'`                                 |
+| `WeekdayNum`      | `{ weekday: Weekday; n?: number }`                                                     |
+
+## Text: `import ... from 'rrule-ts/text'`
+
+| Symbol     | Signature                                                         | Returns  | Guide                                          |
+| ---------- | ----------------------------------------------------------------- | -------- | ---------------------------------------------- |
+| `toText`   | `(options: RRuleOptions, locale?: Locale) => string`              | `string` | [toText and fromText](/guides/totext-fromtext) |
+| `fromText` | `(text: string, locale?: Locale) => Result<RRuleOptions, string>` | `Result` | [toText and fromText](/guides/totext-fromtext) |
+
+## Locales
+
+| Subpath               | Default export        | Guide                                |
+| --------------------- | --------------------- | ------------------------------------ |
+| `rrule-ts/locales/en` | English `Locale` pack | [i18n locales](/guides/i18n-locales) |
+| `rrule-ts/locales/de` | German `Locale` pack  | [i18n locales](/guides/i18n-locales) |
+
+### The Locale interface
+
+```ts
+// Import the type from:
+import type { Locale } from 'rrule-ts/locales/types'
+```
+
+Implement this interface to create a custom locale pack for `toText()` and `fromText()`.
+
+## Tree-shaking note
+
+`rrule-ts` is published with `"sideEffects": false`. Bundlers can safely tree-shake unused exports
+across all subpaths. Only the code paths you import are included in your bundle.

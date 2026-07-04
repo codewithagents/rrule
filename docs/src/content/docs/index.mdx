@@ -1,0 +1,127 @@
+---
+title: rrule-ts
+description: RFC 5545 RRULE parser, validator, stringifier, and expander. Temporal-native, zero runtime dependencies.
+template: splash
+head:
+  - tag: title
+    content: 'rrule-ts: RFC 5545 RRULE for TypeScript, Temporal-native'
+hero:
+  title: RFC 5545 recurrence rules. Correct by construction.
+  tagline: Parse, validate, stringify, and expand RRULE strings using the TC39 Temporal API. Temporal-native means DST transitions, leap seconds, and timezone semantics are handled correctly without workarounds.
+  actions:
+    - text: Get Started
+      link: /getting-started
+      icon: right-arrow
+      variant: primary
+    - text: View on GitHub
+      link: https://github.com/codewithagents/rrule
+      icon: external
+      variant: secondary
+---
+
+import { Card, CardGrid, Aside } from '@astrojs/starlight/components'
+
+## Why rrule-ts?
+
+<CardGrid>
+  <Card title="Temporal-native" icon="approve-check-circle">
+    Built on the TC39 Temporal proposal. Uses `globalThis.Temporal` on Node 26+ and modern
+    browsers. Falls back to any Temporal polyfill via `setTemporal()`. No date math hacks.
+  </Card>
+  <Card title="Zero runtime dependencies" icon="approve-check">
+    The library has no bundled dependencies. Temporal is accessed via `globalThis.Temporal` or an
+    injected polyfill. Your bundle only pays for what you import.
+  </Card>
+  <Card title="TypeScript-first" icon="seti:typescript">
+    Every function has precise return types. `parse()` returns `Result<RRuleOptions, string>`.
+    `validate()` returns `Result<RRuleOptions, ValidationError[]>`. No silent failures.
+  </Card>
+  <Card title="Differential conformance suite" icon="star">
+    Every expansion result is compared against python-dateutil 2.9.0 as the ground-truth oracle,
+    and rrule.js as a known-divergence reference. Behavior is provably correct, not just tested in
+    isolation.
+  </Card>
+</CardGrid>
+
+---
+
+## How it compares
+
+|                                | `rrule-ts` | `rrule`          | `rrule-temporal` |
+| ------------------------------ | ---------- | ---------------- | ---------------- |
+| Temporal-native                | Yes        | No               | Partial          |
+| Zero runtime dependencies      | Yes        | No               | No               |
+| TypeScript-first               | Yes        | Types via @types | Yes              |
+| Differential conformance suite | Yes        | No               | No               |
+| Strict RFC 5545 validation     | Yes        | Partial          | Partial          |
+| Subpath tree-shaking           | Yes        | No               | No               |
+
+---
+
+## Install
+
+```bash
+npm install rrule-ts
+```
+
+On Node.js versions below 26, inject a Temporal polyfill before using date-expansion features:
+
+```ts
+import { setTemporal } from 'rrule-ts'
+import { Temporal } from 'temporal-polyfill'
+
+setTemporal(Temporal)
+```
+
+On Node.js 26 and above, `globalThis.Temporal` is used automatically.
+
+---
+
+## Quick example
+
+```ts
+import { parse, validate, stringify } from 'rrule-ts'
+
+const result = parse('RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR;COUNT=10')
+if (!result.ok) {
+  console.error(result.error)
+  process.exit(1)
+}
+
+const validation = validate(result.value)
+if (!validation.ok) {
+  for (const e of validation.error) {
+    console.error(`${e.ruleId}: ${e.message}`)
+  }
+  process.exit(1)
+}
+
+console.log(stringify(validation.value))
+// RRULE:FREQ=WEEKLY;COUNT=10;BYDAY=MO,WE,FR
+```
+
+---
+
+<div class="cta-section">
+
+## Get started
+
+<CardGrid>
+  <Card title="Introduction" icon="right-arrow">
+    Understand the design, install the library, and set up the Temporal polyfill. [Read the
+    introduction](/getting-started)
+  </Card>
+  <Card title="Quickstart" icon="rocket">
+    Go from a RRULE string to validated, expanded occurrences in minutes. [Read the
+    quickstart](/getting-started/quickstart)
+  </Card>
+  <Card title="GitHub" icon="github">
+    Source code, issues, and the differential conformance corpus. [View on
+    GitHub](https://github.com/codewithagents/rrule)
+  </Card>
+  <Card title="npm" icon="seti:npm">
+    Install from the npm registry. [View on npm](https://www.npmjs.com/package/rrule-ts)
+  </Card>
+</CardGrid>
+
+</div>

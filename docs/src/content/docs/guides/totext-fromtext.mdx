@@ -1,0 +1,85 @@
+---
+title: toText and fromText
+description: Human-readable rendering of RRuleOptions via the rrule-ts/text tree-shakeable subpath.
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+`toText()` converts an `RRuleOptions` to a human-readable string. `fromText()` parses a
+human-readable string back to a `Result<RRuleOptions>`.
+
+These functions live in a separate subpath so bundles only pay for them when imported:
+
+```ts
+import { toText, fromText } from 'rrule-ts/text'
+```
+
+## toText()
+
+```ts
+function toText(options: RRuleOptions, locale?: Locale): string
+```
+
+Example output:
+
+```ts
+import { toText } from 'rrule-ts/text'
+
+toText({ freq: 'WEEKLY', byDay: [{ weekday: 'MO' }, { weekday: 'WE' }], count: 10 })
+// 'every week on Monday and Wednesday for 10 times'
+```
+
+The optional `locale` parameter accepts a locale pack from `rrule-ts/locales/*`. Without it, the
+default English locale is used.
+
+## fromText()
+
+```ts
+function fromText(text: string, locale?: Locale): Result<RRuleOptions, string>
+```
+
+`fromText()` parses a human-readable recurrence description back to `RRuleOptions`:
+
+```ts
+import { fromText } from 'rrule-ts/text'
+
+const result = fromText('every week on Monday and Wednesday for 10 times')
+if (result.ok) {
+  console.log(result.value.freq) // 'WEEKLY'
+}
+```
+
+Returns a `Result` and never throws.
+
+## toText vs stringify
+
+|                | `toText()`                | `stringify()`                   |
+| -------------- | ------------------------- | ------------------------------- |
+| Output         | `every week on Monday...` | `RRULE:FREQ=WEEKLY;...`         |
+| Purpose        | User-facing display       | Storage, wire format, iCalendar |
+| Round-trip     | No (loses precision)      | Yes                             |
+| Locale support | Yes                       | No                              |
+
+Use `stringify()` when storing or transmitting the rule. Use `toText()` when displaying it to a
+user in a UI (for example, in an event description or tooltip).
+
+<Aside type="note" title="Round-trip limitations">
+  The `toText` to `fromText` round-trip may lose information that natural language cannot express.
+  For example, rules with many BY* combinations may not round-trip exactly. Always use `stringify()`
+  for storage and `toText()` only for display.
+</Aside>
+
+## Locale parameter
+
+Pass a locale pack to render in a different language:
+
+```ts
+import { toText } from 'rrule-ts/text'
+import de from 'rrule-ts/locales/de'
+
+toText({ freq: 'WEEKLY', count: 5 }, de)
+// 'jede Woche 5 Mal'
+```
+
+See the [i18n locales guide](/guides/i18n-locales) for the full list of built-in locales and how
+to write a custom one.

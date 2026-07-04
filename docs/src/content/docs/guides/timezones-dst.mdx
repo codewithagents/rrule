@@ -1,0 +1,95 @@
+---
+title: Timezones and DST
+description: Why Temporal makes DST-correct expansion possible, the four dtstart types, and real DST torture cases from the conformance corpus.
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+Daylight saving time transitions create two classes of problems for RRULE expansion:
+
+- **Spring-forward gaps.** Clocks skip from 1:59 AM directly to 3:00 AM. A time like 2:30 AM does
+  not exist on that day.
+- **Fall-back ambiguities.** Clocks repeat from 2:00 AM back to 1:00 AM. A time like 1:30 AM
+  occurs twice.
+
+Date-based RRULE libraries handle these incorrectly or inconsistently because `Date` has no
+concept of a named timezone. rrule-ts uses `Temporal.ZonedDateTime`, which resolves both problems
+with explicit disambiguation semantics.
+
+## The four dtstart types
+
+The type of `dtstart` controls how expansion behaves:
+
+| Type                     | Semantics                                                             |
+| ------------------------ | --------------------------------------------------------------------- |
+| `Temporal.PlainDate`     | All-day events: no time component, no timezone                        |
+| `Temporal.PlainDateTime` | Floating datetime: no timezone, wall clock only                       |
+| `Temporal.Instant`       | UTC fixed moment: always the same absolute point in time              |
+| `Temporal.ZonedDateTime` | Timezone-aware: wall-clock time in a named IANA timezone, DST-correct |
+
+For calendar events that need to respect local time (meetings, appointments), use
+`Temporal.ZonedDateTime`. Each occurrence is computed in the named timezone, respecting wall-clock
+semantics at each expansion point.
+
+## Choosing the right type
+
+Use `PlainDate` for all-day events (birthdays, holidays, full-day blocks).
+
+Use `PlainDateTime` for floating times that have no timezone (e.g. "every day at 9 AM, wherever
+the user happens to be").
+
+Use `Instant` for UTC-fixed events (server-side cron jobs, log timestamps).
+
+Use `ZonedDateTime` for user-facing calendar events with a specific timezone (meetings, reminders).
+
+## DST torture cases from the conformance corpus
+
+The conformance suite includes 16 DST edge cases across four timezone families:
+
+**America/Los_Angeles (spring-forward in March)**
+
+When a weekly rule generates an occurrence at 2:30 AM on the spring-forward day, Temporal uses
+`'skip'` disambiguation by default, moving the time forward to 3:30 AM (the first valid time after
+the gap).
+
+**Europe/Berlin (spring-forward in March, fall-back in October)**
+
+Weekly rules crossing the fall-back transition generate two wall-clock instances of the same time.
+Temporal's `'compatible'` disambiguation selects the first (pre-transition) occurrence.
+
+**Australia/Lord_Howe (30-minute DST offset)**
+
+Lord Howe Island uses a 30-minute DST offset, not the usual 60 minutes. rrule-ts handles
+non-standard offsets correctly because Temporal's timezone support is not limited to whole-hour
+offsets.
+
+**Pacific/Apia (UTC+13/+14, date-line crossing)**
+
+Samoa moved across the international date line in 2011. Rules that span this transition require
+correct calendar arithmetic that goes beyond simple UTC offset math.
+
+<Aside type="note" title="Polyfill and DST">
+  DST-correct behavior requires a Temporal implementation that supports named IANA timezones. Ensure
+  `setTemporal()` is called with a timezone-capable polyfill on Node versions below 26. The
+  `temporal-polyfill` package supports named timezones via the system timezone database.
+</Aside>
+
+## Example: weekly meeting in a named timezone
+
+```ts
+import { setTemporal } from 'rrule-ts'
+import { Temporal } from 'temporal-polyfill'
+
+setTemporal(Temporal)
+
+import { expand } from 'rrule-ts'
+
+const occurrences = expand({
+  freq: 'WEEKLY',
+  byDay: [{ weekday: 'MO' }],
+  count: 5,
+  dtstart: Temporal.ZonedDateTime.from('2024-03-04T09:00:00[America/New_York]'),
+})
+// Each occurrence is a ZonedDateTime in America/New_York,
+// correctly handling the spring-forward on 2024-03-10.
+```

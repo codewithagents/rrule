@@ -1,0 +1,84 @@
+---
+title: Validation
+description: The validate() function, all stable ruleIds, and how to use them in error maps.
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+`validate()` takes a parsed `RRuleOptions` and enforces RFC 5545 cross-field semantic rules. It
+returns every validation error, not just the first.
+
+## Function signature
+
+```ts
+function validate(options: RRuleOptions): Result<RRuleOptions, ValidationError[]>
+```
+
+On success, `result.value` is the same `RRuleOptions` object. On failure, `result.error` is an
+array of `ValidationError` objects.
+
+## ValidationError shape
+
+```ts
+interface ValidationError {
+  field: string // the RRULE field that triggered the rule
+  ruleId: string // stable machine-readable identifier
+  message: string // human-readable description
+}
+```
+
+## Why validate() is separate from parse()
+
+`parse()` is intentionally permissive: it accepts any syntactically valid RRULE part, even
+combinations that are semantically invalid under RFC 5545. This separates concerns: a form UI can
+collect partial input without erroring, then validate before saving.
+
+`validate()` enforces the cross-field rules. It always returns all failures at once, so you can
+display every problem to the user without multiple round-trips.
+
+## Stable ruleIds
+
+ruleIds are stable identifiers across library versions. Use them as keys for error messages,
+translations, or programmatic error handling.
+
+| ruleId                 | Field             | RFC rule                                                             |
+| ---------------------- | ----------------- | -------------------------------------------------------------------- |
+| `COUNT_XNOR_UNTIL`     | `count` / `until` | COUNT and UNTIL are mutually exclusive                               |
+| `BYDAY_ORDINAL_SCOPE`  | `byDay`           | Ordinal BYDAY (e.g. `2MO`) is only valid with MONTHLY or YEARLY FREQ |
+| `BYMONTHDAY_RANGE`     | `byMonthDay`      | Values must be in range 1-31 or -31 to -1                            |
+| `BYYEARDAY_RANGE`      | `byYearDay`       | Values must be in range 1-366 or -366 to -1                          |
+| `BYWEEKNO_RANGE`       | `byWeekNo`        | Values must be in range 1-53 or -53 to -1                            |
+| `BYHOUR_RANGE`         | `byHour`          | Values must be in range 0-23                                         |
+| `BYMINUTE_RANGE`       | `byMinute`        | Values must be in range 0-59                                         |
+| `BYSECOND_RANGE`       | `bySecond`        | Values must be in range 0-60 (60 for leap second)                    |
+| `BYSETPOS_REQUIRES_BY` | `bySetPos`        | BYSETPOS requires at least one other BY\* rule                       |
+| `BYWEEKNO_YEARLY_ONLY` | `byWeekNo`        | BYWEEKNO is only valid with YEARLY FREQ                              |
+| `INTERVAL_POSITIVE`    | `interval`        | INTERVAL must be a positive integer                                  |
+
+## Using ruleIds in error maps
+
+ruleIds are safe to use as keys in translation maps or UI error handlers:
+
+```ts
+import { validate } from 'rrule-ts'
+
+const ruleMessages: Record<string, string> = {
+  COUNT_XNOR_UNTIL: 'A rule cannot have both a count and an end date.',
+  BYDAY_ORDINAL_SCOPE: 'Ordinal weekdays (e.g. "2nd Monday") require monthly or yearly frequency.',
+  // add translations for each ruleId as needed
+}
+
+const validation = validate(options)
+if (!validation.ok) {
+  for (const e of validation.error) {
+    const message = ruleMessages[e.ruleId] ?? e.message
+    console.error(message)
+  }
+}
+```
+
+<Aside type="tip" title="ruleIds are stable">
+  ruleIds will not change across patch or minor versions. A ruleId that exists in v0.3.0 will have
+  the same meaning in v1.0.0. This makes them safe to store in databases, translation files, and
+  error handler maps.
+</Aside>

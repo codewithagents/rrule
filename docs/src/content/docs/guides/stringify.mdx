@@ -1,0 +1,85 @@
+---
+title: Stringifying
+description: The stringify() function, canonical output format, and the round-trip guarantee.
+---
+
+`stringify()` converts an `RRuleOptions` object back to a canonical RRULE string.
+
+## Function signature
+
+```ts
+function stringify(options: RRuleOptions): string
+```
+
+## Canonical output format
+
+The output is always:
+
+- Prefixed with `RRULE:`
+- Parts sorted in a canonical order (FREQ first, then the remaining parts alphabetically)
+- DTSTART content line included before the RRULE line when `options.dtstart` is present
+
+Example:
+
+```ts
+import { stringify } from 'rrule-ts'
+
+stringify({
+  freq: 'WEEKLY',
+  byDay: [{ weekday: 'MO' }, { weekday: 'WE' }, { weekday: 'FR' }],
+  count: 10,
+})
+// 'RRULE:FREQ=WEEKLY;COUNT=10;BYDAY=MO,WE,FR'
+```
+
+## DTSTART output
+
+When `dtstart` is present in the options, `stringify()` includes a `DTSTART` content line:
+
+```ts
+stringify({
+  freq: 'DAILY',
+  count: 5,
+  dtstart: Temporal.PlainDate.from('2024-01-01'),
+})
+// 'DTSTART:20240101\nRRULE:FREQ=DAILY;COUNT=5'
+```
+
+For timezone-aware starts:
+
+```ts
+stringify({
+  freq: 'WEEKLY',
+  dtstart: Temporal.ZonedDateTime.from('2024-01-01T09:00:00[America/New_York]'),
+})
+// 'DTSTART;TZID=America/New_York:20240101T090000\nRRULE:FREQ=WEEKLY'
+```
+
+## Round-trip guarantee
+
+For all valid `RRuleOptions`:
+
+```ts
+parse(stringify(x)).value deep-equals x
+```
+
+And for all valid RRULE strings:
+
+```ts
+stringify(parse(stringify(x)).value) === stringify(x)
+```
+
+This means `stringify` is idempotent: stringifying a parsed value produces the same string as
+stringifying the original.
+
+## stringify vs toText
+
+|                | `stringify()`                               | `toText()`                              |
+| -------------- | ------------------------------------------- | --------------------------------------- |
+| Output         | `RRULE:FREQ=WEEKLY;COUNT=10;BYDAY=MO,WE,FR` | `every weekday for 10 times`            |
+| Purpose        | Storage, wire format, iCalendar             | User-facing display                     |
+| Round-trip     | Yes                                         | No (natural language loses information) |
+| Locale support | No                                          | Yes                                     |
+
+Use `stringify()` when storing or transmitting the RRULE. Use `toText()` when displaying it to a
+user. See the [toText and fromText guide](/guides/totext-fromtext).

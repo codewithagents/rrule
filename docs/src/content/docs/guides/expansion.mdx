@@ -1,0 +1,127 @@
+---
+title: Expansion
+description: expand() and iterate() for generating occurrence sequences. ExpandOptions, the limit matrix, all 7 FREQ values, BYSETPOS, and ordinal BYDAY.
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+`expand()` generates the occurrence sequence for an `RRuleOptions` as an array of Temporal
+date/datetime values. `iterate()` is an async generator for memory-efficient streaming.
+
+## expand()
+
+```ts
+function expand(
+  options: RRuleOptions,
+  expandOptions?: ExpandOptions
+): Temporal.PlainDate[] | Temporal.PlainDateTime[] | Temporal.Instant[] | Temporal.ZonedDateTime[]
+```
+
+The return type mirrors the `dtstart` type:
+
+| `dtstart` type           | Return type                |
+| ------------------------ | -------------------------- |
+| `Temporal.PlainDate`     | `Temporal.PlainDate[]`     |
+| `Temporal.PlainDateTime` | `Temporal.PlainDateTime[]` |
+| `Temporal.Instant`       | `Temporal.Instant[]`       |
+| `Temporal.ZonedDateTime` | `Temporal.ZonedDateTime[]` |
+| undefined (no dtstart)   | `Temporal.PlainDate[]`     |
+
+## ExpandOptions
+
+```ts
+interface ExpandOptions {
+  limit?: number // maximum number of occurrences to return
+  maxDate?: Temporal.PlainDate | Temporal.PlainDateTime | Temporal.Instant | Temporal.ZonedDateTime
+}
+```
+
+## The expand-vs-limit matrix
+
+| Rule has...                 | Behavior                                                      |
+| --------------------------- | ------------------------------------------------------------- |
+| `count`                     | Terminates naturally after `count` occurrences                |
+| `until`                     | Terminates at the `until` date/datetime                       |
+| Neither `count` nor `until` | Infinite rule: REQUIRES `limit` or `maxDate` to avoid hanging |
+
+<Aside type="caution" title="Infinite rules require a limit">
+  A rule with no `count` and no `until` is infinite. Always pass `limit` or `maxDate` when expanding
+  such a rule, or use `iterate()` and break early.
+</Aside>
+
+## All 7 FREQ values
+
+| FREQ       | Generates                 |
+| ---------- | ------------------------- |
+| `SECONDLY` | One occurrence per second |
+| `MINUTELY` | One occurrence per minute |
+| `HOURLY`   | One occurrence per hour   |
+| `DAILY`    | One occurrence per day    |
+| `WEEKLY`   | One occurrence per week   |
+| `MONTHLY`  | One occurrence per month  |
+| `YEARLY`   | One occurrence per year   |
+
+The `interval` field multiplies the base frequency. `FREQ=WEEKLY;INTERVAL=2` generates occurrences
+every two weeks.
+
+## BYSETPOS: selecting within the set
+
+`BYSETPOS` filters the occurrence set generated within each period. A negative value selects from
+the end. The most common pattern is `-1` for "last":
+
+```ts
+// Last weekday of every month
+{
+  freq: 'MONTHLY',
+  byDay: [
+    { weekday: 'MO' }, { weekday: 'TU' }, { weekday: 'WE' },
+    { weekday: 'TH' }, { weekday: 'FR' },
+  ],
+  bySetPos: [-1],
+}
+```
+
+## Ordinal BYDAY
+
+In a `MONTHLY` or `YEARLY` rule, a `WeekdayNum` with an ordinal `n` selects a specific occurrence
+of that weekday within the month or year:
+
+```ts
+// Second Tuesday of every month
+{
+  freq: 'MONTHLY',
+  byDay: [{ weekday: 'TU', n: 2 }],
+}
+
+// Last Friday of every year
+{
+  freq: 'YEARLY',
+  byDay: [{ weekday: 'FR', n: -1 }],
+}
+```
+
+## iterate()
+
+`iterate()` is an async generator that yields one occurrence at a time. Use it for large or
+infinite sequences where loading the full array into memory is not practical:
+
+```ts
+import { iterate } from 'rrule-ts'
+
+for await (const date of iterate(options, { limit: 1000 })) {
+  // process one occurrence at a time
+  if (shouldStop(date)) break
+}
+```
+
+## Example
+
+```ts
+import { parse, expand } from 'rrule-ts'
+
+const result = parse('RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR;COUNT=3')
+if (!result.ok) throw new Error(result.error)
+
+const dates = expand(result.value)
+// [PlainDate('2024-01-01'), PlainDate('2024-01-03'), PlainDate('2024-01-05')]
+```
