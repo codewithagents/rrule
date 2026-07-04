@@ -592,6 +592,124 @@ describe('toText DE: formatOrdinal', () => {
   })
 })
 
+// ---------------------------------------------------------------------------
+// Regression tests for adversarial-review issues
+// ---------------------------------------------------------------------------
+
+describe('toText regression: BLOCKING negative BYDAY ordinals below -1', () => {
+  it('FREQ=MONTHLY;BYDAY=-2MO EN -> every month on the 2nd-to-last Monday', () => {
+    expect(toText({ freq: 'MONTHLY', byDay: [{ weekday: 'MO', ordinal: -2 }] })).toBe(
+      'every month on the 2nd-to-last Monday'
+    )
+  })
+
+  it('FREQ=MONTHLY;BYDAY=-3FR EN -> every month on the 3rd-to-last Friday', () => {
+    expect(toText({ freq: 'MONTHLY', byDay: [{ weekday: 'FR', ordinal: -3 }] })).toBe(
+      'every month on the 3rd-to-last Friday'
+    )
+  })
+
+  it('FREQ=MONTHLY;BYDAY=-2MO DE -> jeden Monat am vorletzten Montag', () => {
+    expect(
+      toText({ freq: 'MONTHLY', byDay: [{ weekday: 'MO', ordinal: -2 }] }, { locale: de })
+    ).toBe('jeden Monat am vorletzten Montag')
+  })
+
+  it('FREQ=MONTHLY;BYDAY=-3FR DE -> jeden Monat am 3.-letzten Freitag', () => {
+    expect(
+      toText({ freq: 'MONTHLY', byDay: [{ weekday: 'FR', ordinal: -3 }] }, { locale: de })
+    ).toBe('jeden Monat am 3.-letzten Freitag')
+  })
+})
+
+describe('toText regression: MAJOR BYSETPOS non-last with Mon-Fri set -> fallback', () => {
+  it('BYSETPOS=2 + Mon-Fri -> (complex recurrence rule)', () => {
+    expect(
+      toText({
+        freq: 'MONTHLY',
+        byDay: [
+          { weekday: 'MO', ordinal: undefined },
+          { weekday: 'TU', ordinal: undefined },
+          { weekday: 'WE', ordinal: undefined },
+          { weekday: 'TH', ordinal: undefined },
+          { weekday: 'FR', ordinal: undefined },
+        ],
+        bySetPos: [2],
+      })
+    ).toBe(COMPLEX_RULE_FALLBACK)
+  })
+
+  it('BYSETPOS=1 + Mon-Fri -> (complex recurrence rule)', () => {
+    expect(
+      toText({
+        freq: 'MONTHLY',
+        byDay: [
+          { weekday: 'MO', ordinal: undefined },
+          { weekday: 'TU', ordinal: undefined },
+          { weekday: 'WE', ordinal: undefined },
+          { weekday: 'TH', ordinal: undefined },
+          { weekday: 'FR', ordinal: undefined },
+        ],
+        bySetPos: [1],
+      })
+    ).toBe(COMPLEX_RULE_FALLBACK)
+  })
+
+  it('BYSETPOS=-1 + Mon-Fri still renders "the last weekday"', () => {
+    expect(
+      toText({
+        freq: 'MONTHLY',
+        byDay: [
+          { weekday: 'MO', ordinal: undefined },
+          { weekday: 'TU', ordinal: undefined },
+          { weekday: 'WE', ordinal: undefined },
+          { weekday: 'TH', ordinal: undefined },
+          { weekday: 'FR', ordinal: undefined },
+        ],
+        bySetPos: [-1],
+      })
+    ).toBe('every month on the last weekday')
+  })
+})
+
+describe('toText regression: MAJOR BYDAY + BYMONTHDAY both present -> fallback', () => {
+  it('FREQ=MONTHLY;BYDAY=MO;BYMONTHDAY=1 -> (complex recurrence rule)', () => {
+    expect(
+      toText({
+        freq: 'MONTHLY',
+        byDay: [{ weekday: 'MO', ordinal: undefined }],
+        byMonthDay: [1],
+      })
+    ).toBe(COMPLEX_RULE_FALLBACK)
+  })
+
+  it('FREQ=WEEKLY;BYDAY=MO;BYMONTHDAY=15 -> (complex recurrence rule)', () => {
+    expect(
+      toText({
+        freq: 'WEEKLY',
+        byDay: [{ weekday: 'MO', ordinal: undefined }],
+        byMonthDay: [15],
+      })
+    ).toBe(COMPLEX_RULE_FALLBACK)
+  })
+})
+
+describe('toText regression: MAJOR multiple BYMINUTE values -> fallback', () => {
+  it('BYHOUR=9;BYMINUTE=0,30 -> (complex recurrence rule)', () => {
+    expect(toText({ freq: 'DAILY', byHour: [9], byMinute: [0, 30] })).toBe(COMPLEX_RULE_FALLBACK)
+  })
+
+  it('BYHOUR=9,17;BYMINUTE=0,30 -> (complex recurrence rule)', () => {
+    expect(toText({ freq: 'DAILY', byHour: [9, 17], byMinute: [0, 30] })).toBe(
+      COMPLEX_RULE_FALLBACK
+    )
+  })
+
+  it('BYHOUR=9;BYMINUTE=30 (single minute) still renders correctly', () => {
+    expect(toText({ freq: 'DAILY', byHour: [9], byMinute: [30] })).toBe('every day at 9:30')
+  })
+})
+
 describe('toText DE: formatList (no Oxford comma)', () => {
   it('two items joined with "und" only', () => {
     expect(

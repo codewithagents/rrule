@@ -398,6 +398,57 @@ describe('fromText EN: combinations', () => {
   })
 })
 
+describe('fromText regression: negative BYDAY ordinals below -1 (BLOCKING)', () => {
+  it('every month on the 2nd-to-last Monday -> BYDAY=-2MO', () => {
+    expect(parseOk('every month on the 2nd-to-last Monday')).toEqual({
+      freq: 'MONTHLY',
+      byDay: [{ weekday: 'MO', ordinal: -2 }],
+    })
+  })
+
+  it('every month on the 3rd-to-last Friday -> BYDAY=-3FR', () => {
+    expect(parseOk('every month on the 3rd-to-last Friday')).toEqual({
+      freq: 'MONTHLY',
+      byDay: [{ weekday: 'FR', ordinal: -3 }],
+    })
+  })
+
+  it('BYDAY=-2MO round-trips through toText and back', () => {
+    const opts = { freq: 'MONTHLY' as const, byDay: [{ weekday: 'MO' as const, ordinal: -2 }] }
+    const text = toText(opts, { locale: en })
+    expect(text).toBe('every month on the 2nd-to-last Monday')
+    expect(text).not.toBe(COMPLEX_RULE_FALLBACK)
+    const parsed = fromText(text)
+    expect(parsed.ok).toBe(true)
+    if (!parsed.ok) return
+    expect(parsed.value).toEqual(opts)
+  })
+
+  it('BYDAY=-3FR round-trips through toText and back', () => {
+    const opts = { freq: 'MONTHLY' as const, byDay: [{ weekday: 'FR' as const, ordinal: -3 }] }
+    const text = toText(opts, { locale: en })
+    expect(text).toBe('every month on the 3rd-to-last Friday')
+    expect(text).not.toBe(COMPLEX_RULE_FALLBACK)
+    const parsed = fromText(text)
+    expect(parsed.ok).toBe(true)
+    if (!parsed.ok) return
+    expect(parsed.value).toEqual(opts)
+  })
+})
+
+describe('fromText regression: fallback strings return Err', () => {
+  it('BYSETPOS=2 + Mon-Fri complex fallback is not parseable', () => {
+    // toText returns the fallback; fromText must return Err for it.
+    const result = fromText(COMPLEX_RULE_FALLBACK)
+    expect(result.ok).toBe(false)
+  })
+
+  it('BYDAY+BYMONTHDAY complex fallback is not parseable', () => {
+    const result = fromText(COMPLEX_RULE_FALLBACK)
+    expect(result.ok).toBe(false)
+  })
+})
+
 describe('fromText EN: error cases', () => {
   it('returns Err for empty string', () => {
     const result = fromText('')

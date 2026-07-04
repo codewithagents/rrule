@@ -5,6 +5,7 @@
 
 import type { Frequency } from '../types.js'
 import type { LocalePack } from './types.js'
+import { getTemporal } from '../temporal.js'
 
 export type { LocalePack, LocaleTokens } from './types.js'
 
@@ -115,21 +116,18 @@ export const en: LocalePack = {
   },
 
   formatDate(date): string {
-    // Duck-type to identify the Temporal variant.
-    // Temporal.Instant: has epochMilliseconds but no year on the object itself.
-    if ('epochMilliseconds' in date && !('year' in date)) {
-      const inst = date as Temporal.Instant
-      const dt = inst.toZonedDateTimeISO('UTC')
+    const T = getTemporal()
+    // Use instanceof to safely identify the Temporal variant.
+    if (date instanceof T.Instant) {
+      const dt = date.toZonedDateTimeISO('UTC')
       const min = String(dt.minute).padStart(2, '0')
       return `${EN_MONTHS[dt.month - 1]} ${dt.day}, ${dt.year} at ${dt.hour}:${min}`
     }
-    // Temporal.PlainDateTime: has year and hour.
-    if ('hour' in date) {
-      const dt = date as Temporal.PlainDateTime
-      const min = String(dt.minute).padStart(2, '0')
-      return `${EN_MONTHS[dt.month - 1]} ${dt.day}, ${dt.year} at ${dt.hour}:${min}`
+    if (date instanceof T.PlainDateTime) {
+      const min = String(date.minute).padStart(2, '0')
+      return `${EN_MONTHS[date.month - 1]} ${date.day}, ${date.year} at ${date.hour}:${min}`
     }
-    // Temporal.PlainDate: has year, no hour.
+    // Temporal.PlainDate
     const d = date as Temporal.PlainDate
     return `${EN_MONTHS[d.month - 1]} ${d.day}, ${d.year}`
   },
@@ -153,6 +151,28 @@ export const en: LocalePack = {
       suffix = 'th'
     }
     return `${abs}${suffix}-to-last day`
+  },
+
+  formatNthToLastOrdinal(n: number): string {
+    // n is the absolute value (n >= 2).
+    // Returns the adjectival "Nth-to-last" form used before a weekday name in BYDAY.
+    // EN: 2 -> '2nd-to-last', 3 -> '3rd-to-last', 11 -> '11th-to-last', etc.
+    const abs = n
+    const mod100 = abs % 100
+    const mod10 = abs % 10
+    let suffix: string
+    if (mod100 >= 11 && mod100 <= 13) {
+      suffix = 'th'
+    } else if (mod10 === 1) {
+      suffix = 'st'
+    } else if (mod10 === 2) {
+      suffix = 'nd'
+    } else if (mod10 === 3) {
+      suffix = 'rd'
+    } else {
+      suffix = 'th'
+    }
+    return `${abs}${suffix}-to-last`
   },
 
   complexRuleFallback: '(complex recurrence rule)',

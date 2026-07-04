@@ -73,6 +73,14 @@ function isComplex(opts: RRuleOptions): boolean {
   if (opts.byWeekNo !== undefined) return true
   if (opts.byYearDay !== undefined) return true
 
+  // BYDAY + BYMONTHDAY together cannot be phrased naturally: the two constraints
+  // would need a compound clause that no locale currently supports.
+  if (opts.byDay !== undefined && opts.byMonthDay !== undefined) return true
+
+  // Multiple BYMINUTE values cannot be paired with each BYHOUR in a single
+  // natural time phrase; only one minute value per render is supported.
+  if (opts.byMinute !== undefined && opts.byMinute.length > 1) return true
+
   if (opts.bySetPos !== undefined) {
     // Multiple positions have no single natural phrase.
     if (opts.bySetPos.length > 1) return true
@@ -92,11 +100,15 @@ function isComplex(opts: RRuleOptions): boolean {
     // BYSETPOS + ordinal BYDAY is contradictory.
     if (opts.byDay.some((d) => d.ordinal !== undefined)) return true
 
-    // Multiple plain weekdays: only Mon-Fri (weekday set) is naturally phraseable.
+    // Multiple plain weekdays: only Mon-Fri (weekday set) with BYSETPOS=-1
+    // ("last weekday") is naturally phraseable. Any other BYSETPOS value with
+    // a multi-weekday set cannot be phrased as a single natural sentence.
     const weekdays = opts.byDay.map((d) => d.weekday)
     if (weekdays.length > 1) {
       const isWeekdaySet = weekdays.length === 5 && weekdays.every((w) => MON_TO_FRI.has(w))
       if (!isWeekdaySet) return true
+      // Mon-Fri 5-day set: only BYSETPOS=-1 (last weekday) is phraseable.
+      if (opts.bySetPos[0] !== -1) return true
     }
   }
 
@@ -144,6 +156,11 @@ function buildByDayClause(opts: RRuleOptions, locale: LocalePack): string {
     if (ord === -1) {
       // Use tokens.last for the adjectival 'last' form.
       return sp(locale.tokens.the, locale.tokens.last, name)
+    }
+    if (ord < -1) {
+      // Negative ordinals below -1 (e.g. -2MO = 2nd-to-last Monday).
+      // Delegate to the locale so each language can produce a natural phrase.
+      return sp(locale.tokens.the, locale.formatNthToLastOrdinal(Math.abs(ord)), name)
     }
     return sp(locale.tokens.the, locale.formatOrdinal(ord), name)
   })

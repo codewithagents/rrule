@@ -325,17 +325,23 @@ function continueBydayOrdinalList(p: Parser, byDay: WeekdayNum[]): void {
       break
     }
 
-    // Parse 'last' or ordinal
+    // Parse 'last', 'Nth-to-last', or a positive ordinal.
     let nextOrd: number
     if (p.peek() === 'last') {
       p.consume()
       nextOrd = -1
     } else {
-      const no = parseOrdinal(p.peek() ?? '')
-      if (no === null)
-        throw new Error(`fromText: expected ordinal in BYDAY list, got '${p.peek()}'`)
-      p.consume()
-      nextOrd = no
+      const negNo = parseNegOrdinalToLast(p.peek() ?? '')
+      if (negNo !== null) {
+        p.consume()
+        nextOrd = negNo
+      } else {
+        const no = parseOrdinal(p.peek() ?? '')
+        if (no === null)
+          throw new Error(`fromText: expected ordinal in BYDAY list, got '${p.peek()}'`)
+        p.consume()
+        nextOrd = no
+      }
     }
 
     const nextWD = p.peek()
@@ -386,13 +392,28 @@ function parseOnThePart(p: Parser, opts: RRuleOptions): void {
     )
   }
 
-  // --- Nth-to-last (negative BYMONTHDAY like '2nd-to-last day') ---
+  // --- Nth-to-last: either negative BYMONTHDAY ('2nd-to-last day')
+  //     or negative ordinal BYDAY ('2nd-to-last Monday') ---
   const negOrd = parseNegOrdinalToLast(next)
   if (negOrd !== null) {
     p.consume() // 'Nth-to-last'
+    const nextTok = p.peek()
+
+    // Nth-to-last weekday: BYDAY with negative ordinal (e.g. '2nd-to-last Monday').
+    if (nextTok !== undefined && nextTok in EN_WEEKDAY) {
+      p.consume()
+      const byDay: WeekdayNum[] = [{ weekday: EN_WEEKDAY[nextTok], ordinal: negOrd }]
+      continueBydayOrdinalList(p, byDay)
+      opts.byDay = byDay
+      return
+    }
+
+    // Otherwise must be followed by 'day': negative BYMONTHDAY.
     const dayToken = p.consume()
     if (dayToken !== 'day') {
-      throw new Error(`fromText: expected 'day' after neg-ordinal, got '${dayToken}'`)
+      throw new Error(
+        `fromText: expected 'day' or weekday name after neg-ordinal, got '${dayToken}'`
+      )
     }
     const byMonthDay: number[] = [negOrd]
 

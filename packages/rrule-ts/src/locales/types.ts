@@ -114,6 +114,14 @@ export interface LocalePack {
   formatNthToLastDay(n: number): string
 
   /**
+   * Render just the adjectival "nth-to-last" ordinal for a negative BYDAY ordinal
+   * below -1 (e.g. ordinal=-2 for -2MO). n is the absolute value (n >= 2).
+   * The returned string is combined with a weekday name by toText.
+   * EN: n=2 -> '2nd-to-last'. DE: n=2 -> 'vorletzten', n=3 -> '3.-letzten'.
+   */
+  formatNthToLastOrdinal(n: number): string
+
+  /**
    * The phrase returned by toText when a rule cannot be expressed naturally.
    * Callers who compare against COMPLEX_RULE_FALLBACK should use the EN locale
    * or compare against locale.complexRuleFallback for the locale they use.

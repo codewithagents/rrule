@@ -63,7 +63,9 @@ export function toText(options: RRuleOptions, textOptions?: TextOptions): string
  * does not return the complex-rule fallback string,
  * fromText(toText(x, {locale: en})).value deep-equals x
  * (excluding dtstart, tzid, wkst, bySecond which are absent from text output,
- * and excluding byMinute=[0] which is indistinguishable from byMinute=undefined).
+ * and excluding byMinute=[0] which is indistinguishable from byMinute=undefined,
+ * and excluding BYSETPOS + single plain weekday which is reconstructed as an
+ * ordinal BYDAY entry, losing the original bySetPos field).
  *
  * Returns Err if the text cannot be parsed as EN toText output.
  *

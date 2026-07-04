@@ -5,6 +5,7 @@
 
 import type { Frequency } from '../types.js'
 import type { LocalePack } from './types.js'
+import { getTemporal } from '../temporal.js'
 
 export type { LocalePack, LocaleTokens } from './types.js'
 
@@ -112,17 +113,16 @@ export const de: LocalePack = {
 
   formatDate(date): string {
     // German date order: D. Month YYYY
-    // Duck-type to identify the Temporal variant.
-    if ('epochMilliseconds' in date && !('year' in date)) {
-      const inst = date as Temporal.Instant
-      const dt = inst.toZonedDateTimeISO('UTC')
+    const T = getTemporal()
+    // Use instanceof to safely identify the Temporal variant.
+    if (date instanceof T.Instant) {
+      const dt = date.toZonedDateTimeISO('UTC')
       const min = String(dt.minute).padStart(2, '0')
       return `${dt.day}. ${DE_MONTHS[dt.month - 1]} ${dt.year} um ${dt.hour}:${min}`
     }
-    if ('hour' in date) {
-      const dt = date as Temporal.PlainDateTime
-      const min = String(dt.minute).padStart(2, '0')
-      return `${dt.day}. ${DE_MONTHS[dt.month - 1]} ${dt.year} um ${dt.hour}:${min}`
+    if (date instanceof T.PlainDateTime) {
+      const min = String(date.minute).padStart(2, '0')
+      return `${date.day}. ${DE_MONTHS[date.month - 1]} ${date.year} um ${date.hour}:${min}`
     }
     const d = date as Temporal.PlainDate
     return `${d.day}. ${DE_MONTHS[d.month - 1]} ${d.year}`
@@ -134,6 +134,14 @@ export const de: LocalePack = {
     // n>=3 -> 'N.-letzten Tag' (literal period-ordinal + letzten Tag).
     if (n === 2) return 'vorletzten Tag'
     return `${n}.-letzten Tag`
+  },
+
+  formatNthToLastOrdinal(n: number): string {
+    // n is the absolute value (n >= 2).
+    // Returns the adjectival "Nth-to-last" form used before a weekday name in BYDAY.
+    // DE: n=2 -> 'vorletzten', n>=3 -> 'N.-letzten'.
+    if (n === 2) return 'vorletzten'
+    return `${n}.-letzten`
   },
 
   complexRuleFallback: '(komplexe Wiederholungsregel)',
