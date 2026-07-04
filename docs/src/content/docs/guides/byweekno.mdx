@@ -1,73 +1,152 @@
 ---
 title: BYWEEKNO and Year Boundaries
-description: ISO 8601 week numbering, the year-boundary edge case, rrule-ts stance, and comparison with rrule.js.
+description: ISO 8601 week numbering, the year-boundary edge case, rrule-ts's strict Thursday-rule stance, and deliberate divergence from python-dateutil and rrule.js.
 ---
 
 import { Aside } from '@astrojs/starlight/components'
 
-`BYWEEKNO` selects occurrences by ISO 8601 week number. This looks straightforward but has a
-well-known edge case: the ISO week year does not always match the calendar year.
+`BYWEEKNO` selects occurrences by ISO 8601 week number within a `FREQ=YEARLY` rule. It looks
+straightforward but has a well-known edge case at the calendar year boundary: the ISO week year
+does not always match the calendar year.
 
-## ISO 8601 week numbering
+## ISO 8601 week numbering: the Thursday rule
 
-ISO 8601 defines week 1 as the week containing the first Thursday of the year. This means:
+RFC 5545 defers week numbering to ISO 8601. The ISO 8601 rule is: **week 1 is the week containing
+the first Thursday of the year** (equivalently, the week that contains January 4). A week belongs
+to the year that contains its Thursday.
 
-- Days in late December can belong to week 1 of the **next** calendar year.
-- Days in early January can belong to week 52 or 53 of the **previous** calendar year.
+Consequences:
 
-For example, 2024-12-30 (a Monday) belongs to ISO week 1 of 2025.
+- Days in late December can belong to ISO week 1 of the **next** calendar year.
+- Days in early January can belong to ISO week 52 or 53 of the **previous** calendar year.
 
-## Year-boundary behavior in BYWEEKNO
+For example:
 
-When a `YEARLY` rule with `BYWEEKNO=1` expands, the question is: does the occurrence fall on the
-days of week 1 that belong to the previous calendar year?
+- `2024-12-30` (Monday) belongs to ISO week 2025-W01, not 2024-W52.
+- `2000-01-01` (Saturday) belongs to ISO week 1999-W52.
+- `2000-01-02` (Sunday) belongs to ISO week 1999-W52.
+- `2000-12-25` through `2000-12-31` all belong to ISO week 2000-W52.
 
-rrule-ts documents its stance explicitly: occurrences are generated for the days that ISO week 1
-contains, even when those days fall in December of the previous calendar year. This matches the
-python-dateutil oracle behavior that the conformance suite verifies against.
+## rrule-ts behavior: strict ISO week-year matching
 
-<Aside type="note" title="Known divergence from rrule.js">
-  rrule.js and rrule-ts produce different results for BYWEEKNO year-boundary cases. The conformance
-  suite documents these divergences explicitly. rrule-ts follows python-dateutil (the primary ground
-  truth) where the two differ.
+rrule-ts applies the Thursday rule strictly. For `FREQ=YEARLY`, each iteration covers one
+calendar year. `BYWEEKNO=52` selects only dates whose **ISO week-year matches the iteration
+year**.
+
+**Example:** `FREQ=YEARLY;BYWEEKNO=52` starting from `DTSTART:20000101T090000`
+
+rrule-ts emits exactly seven occurrences for calendar year 2000:
+
+| Date       | ISO week-year | ISO week | Day       |
+| ---------- | ------------- | -------- | --------- |
+| 2000-12-25 | 2000          | 52       | Monday    |
+| 2000-12-26 | 2000          | 52       | Tuesday   |
+| 2000-12-27 | 2000          | 52       | Wednesday |
+| 2000-12-28 | 2000          | 52       | Thursday  |
+| 2000-12-29 | 2000          | 52       | Friday    |
+| 2000-12-30 | 2000          | 52       | Saturday  |
+| 2000-12-31 | 2000          | 52       | Sunday    |
+
+`2000-01-01` and `2000-01-02` are **not** included, because their ISO week-year is 1999, not 2000. They fall in ISO week 1999-W52, which is a different week-year.
+
+## Deliberate divergence from python-dateutil and rrule.js
+
+python-dateutil and rrule.js both **additionally** include `2000-01-01` and `2000-01-02` in the
+result for the same rule. Their reasoning: those two dates are in "week 52" of some ISO week-year,
+and the rule asks for week 52.
+
+rrule-ts takes the stricter interpretation: `FREQ=YEARLY` iterates calendar years, so
+`BYWEEKNO=52` selects only dates whose ISO week-year matches the calendar year being iterated.
+RFC 5545 does not explicitly resolve this backward-boundary ambiguity, so both approaches are
+defensible. The rrule-ts divergence is deliberate and documented.
+
+<Aside type="note" title="Neither implementation is wrong">
+  RFC 5545 defers to ISO 8601 but does not specify how to handle the backward boundary
+  (early-January days that ISO assigns to the previous week-year). rrule-ts chooses the strict
+  reading. python-dateutil and rrule.js choose the lenient reading. This is a documented conformance
+  divergence, not a bug in any of the three libraries.
 </Aside>
 
-## WKST interaction
-
-The `WKST` field shifts which day starts the week. This affects where week boundaries fall and,
-consequently, which days belong to which ISO week number.
-
-For example, with `WKST=SU` (week starts Sunday), the week structure differs from the default
-`WKST=MO`.
-
-```ts
-// BYWEEKNO with explicit week start
-{
-  freq: 'YEARLY',
-  byWeekNo: [1],
-  wkst: 'SU',  // weeks start on Sunday
-}
-```
+The differential conformance suite in `packages/conformance/src/diff.test.ts` contains a
+hand-authored test for this case that is intentionally excluded from the oracle-derived corpus.
 
 ## BYWEEKNO is YEARLY-only
 
-RFC 5545 restricts `BYWEEKNO` to `FREQ=YEARLY`. Using it with other frequencies is a validation
-error. `validate()` reports this with ruleId `BYWEEKNO_YEARLY_ONLY`.
+RFC 5545 restricts `BYWEEKNO` to `FREQ=YEARLY`. Using it with any other frequency is a
+validation error. `validate()` reports this with `ruleId: 'BYWEEKNO_YEARLY_ONLY'`.
+
+```ts
+import { validate } from 'rrule-ts'
+
+const errors = validate({ freq: 'MONTHLY', byWeekNo: [1] })
+// errors.ok === false
+// errors.error[0].ruleId === 'BYWEEKNO_YEARLY_ONLY'
+```
 
 ## Negative BYWEEKNO values
 
-Negative values select weeks from the end of the year: `-1` is the last ISO week of the year
-(week 52 or 53 depending on the year).
+Negative values count ISO weeks from the end of the year. `-1` is the last ISO week (week 52 or
+53, depending on whether the year has 52 or 53 ISO weeks).
 
 ```ts
-{
+import { expand } from 'rrule-ts'
+import { Temporal } from 'temporal-polyfill'
+
+// Last ISO week of each year for 3 years
+expand({
   freq: 'YEARLY',
-  byWeekNo: [-1],  // last week of the year
-}
+  byWeekNo: [-1],
+  count: 7, // up to 7 days in last week
+  dtstart: Temporal.PlainDate.from('2025-01-01'),
+})
 ```
 
-## Conformance
+## BYDAY interaction with BYWEEKNO
 
-The conformance corpus includes BYWEEKNO edge cases with year-boundary verification against
-python-dateutil. See the [Differential conformance suite](/conformance/differential-suite) for
-the full methodology.
+When `BYDAY` is used alongside `BYWEEKNO`, it filters the days within each selected week.
+
+```ts
+// Every Thursday of ISO week 10, for 3 years
+expand({
+  freq: 'YEARLY',
+  byWeekNo: [10],
+  byDay: [{ weekday: 'TH', ordinal: undefined }],
+  count: 3,
+  dtstart: Temporal.PlainDate.from('2025-01-01'),
+})
+// One Thursday per year: the Thursday of ISO week 10
+```
+
+## WKST interaction
+
+The `WKST` field shifts which day anchors week 1. This changes which days belong to which week
+number. The default `WKST` is `MO` (Monday), matching the ISO 8601 default.
+
+```ts
+// BYWEEKNO with Sunday week start
+expand({
+  freq: 'YEARLY',
+  byWeekNo: [1],
+  wkst: 'SU',
+  count: 7,
+  dtstart: Temporal.PlainDate.from('2025-01-01'),
+})
+// Week 1 boundaries shift when WKST=SU
+```
+
+## Example: FREQ=YEARLY;BYWEEKNO=52
+
+```ts
+import { parse, expand } from 'rrule-ts'
+import { Temporal } from 'temporal-polyfill'
+
+const result = parse('RRULE:FREQ=YEARLY;BYWEEKNO=52;COUNT=7')
+if (!result.ok) throw new Error(result.error)
+
+const dates = expand({
+  ...result.value,
+  dtstart: Temporal.PlainDate.from('2000-01-01'),
+})
+// rrule-ts emits Mon-Sun of ISO week 2000-W52: 2000-12-25 through 2000-12-31.
+// python-dateutil additionally includes 2000-01-01 and 2000-01-02.
+```

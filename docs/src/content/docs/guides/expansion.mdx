@@ -1,127 +1,316 @@
 ---
 title: Expansion
-description: expand() and iterate() for generating occurrence sequences. ExpandOptions, the limit matrix, all 7 FREQ values, BYSETPOS, and ordinal BYDAY.
+description: expand() and iterate() for generating occurrence sequences. ExpandOptions, the BY* expand-vs-limit matrix, all 7 FREQ values, BYSETPOS, and ordinal BYDAY.
 ---
 
 import { Aside } from '@astrojs/starlight/components'
 
-`expand()` generates the occurrence sequence for an `RRuleOptions` as an array of Temporal
-date/datetime values. `iterate()` is an async generator for memory-efficient streaming.
+`expand()` materializes the occurrence sequence for an `RRuleOptions` into an array. `iterate()` is
+a synchronous generator for memory-efficient streaming over the same sequence.
 
 ## expand()
 
 ```ts
-function expand(
-  options: RRuleOptions,
-  expandOptions?: ExpandOptions
-): Temporal.PlainDate[] | Temporal.PlainDateTime[] | Temporal.Instant[] | Temporal.ZonedDateTime[]
+import { expand } from 'rrule-ts'
+
+function expand(options: RRuleOptions, limitOrOpts?: number | ExpandOptions): RRuleDtstart[]
 ```
 
-The return type mirrors the `dtstart` type:
+The second argument is either a plain number (maximum occurrences) or an `ExpandOptions` object.
 
-| `dtstart` type           | Return type                |
-| ------------------------ | -------------------------- |
-| `Temporal.PlainDate`     | `Temporal.PlainDate[]`     |
-| `Temporal.PlainDateTime` | `Temporal.PlainDateTime[]` |
-| `Temporal.Instant`       | `Temporal.Instant[]`       |
-| `Temporal.ZonedDateTime` | `Temporal.ZonedDateTime[]` |
-| undefined (no dtstart)   | `Temporal.PlainDate[]`     |
-
-## ExpandOptions
+### ExpandOptions
 
 ```ts
 interface ExpandOptions {
-  limit?: number // maximum number of occurrences to return
-  maxDate?: Temporal.PlainDate | Temporal.PlainDateTime | Temporal.Instant | Temporal.ZonedDateTime
+  /** Maximum number of occurrences to return. */
+  limit?: number
+  /** Only return occurrences at or after this value (inclusive by default). */
+  after?: RRuleDtstart
+  /** Only return occurrences at or before this value (inclusive by default). */
+  before?: RRuleDtstart
+  /** Whether after/before bounds are inclusive. Defaults to true. */
+  inclusive?: boolean
 }
 ```
 
-## The expand-vs-limit matrix
+The return type mirrors the `dtstart` type on the options object:
 
-| Rule has...                 | Behavior                                                      |
-| --------------------------- | ------------------------------------------------------------- |
-| `count`                     | Terminates naturally after `count` occurrences                |
-| `until`                     | Terminates at the `until` date/datetime                       |
-| Neither `count` nor `until` | Infinite rule: REQUIRES `limit` or `maxDate` to avoid hanging |
+| `dtstart` type           | Return element type      |
+| ------------------------ | ------------------------ |
+| `Temporal.PlainDate`     | `Temporal.PlainDate`     |
+| `Temporal.PlainDateTime` | `Temporal.PlainDateTime` |
+| `Temporal.Instant`       | `Temporal.Instant`       |
+| `Temporal.ZonedDateTime` | `Temporal.ZonedDateTime` |
 
 <Aside type="caution" title="Infinite rules require a limit">
-  A rule with no `count` and no `until` is infinite. Always pass `limit` or `maxDate` when expanding
-  such a rule, or use `iterate()` and break early.
+  A rule with no `count` and no `until` is infinite. Always pass a `limit` (or a `before` bound)
+  when expanding such a rule, or use `iterate()` and break early. Without a limit the engine will
+  run until its internal safety cap.
 </Aside>
 
-## All 7 FREQ values
-
-| FREQ       | Generates                 |
-| ---------- | ------------------------- |
-| `SECONDLY` | One occurrence per second |
-| `MINUTELY` | One occurrence per minute |
-| `HOURLY`   | One occurrence per hour   |
-| `DAILY`    | One occurrence per day    |
-| `WEEKLY`   | One occurrence per week   |
-| `MONTHLY`  | One occurrence per month  |
-| `YEARLY`   | One occurrence per year   |
-
-The `interval` field multiplies the base frequency. `FREQ=WEEKLY;INTERVAL=2` generates occurrences
-every two weeks.
-
-## BYSETPOS: selecting within the set
-
-`BYSETPOS` filters the occurrence set generated within each period. A negative value selects from
-the end. The most common pattern is `-1` for "last":
+### Basic examples
 
 ```ts
-// Last weekday of every month
-{
-  freq: 'MONTHLY',
-  byDay: [
-    { weekday: 'MO' }, { weekday: 'TU' }, { weekday: 'WE' },
-    { weekday: 'TH' }, { weekday: 'FR' },
-  ],
-  bySetPos: [-1],
-}
-```
+import { parse, expand } from 'rrule-ts'
+import { Temporal } from 'temporal-polyfill'
 
-## Ordinal BYDAY
+// Bounded rule via COUNT: no limit needed
+const result = parse('RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR;COUNT=6')
+if (!result.ok) throw new Error(result.error)
 
-In a `MONTHLY` or `YEARLY` rule, a `WeekdayNum` with an ordinal `n` selects a specific occurrence
-of that weekday within the month or year:
+const dates = expand({
+  ...result.value,
+  dtstart: Temporal.PlainDate.from('2025-01-06'), // Monday
+})
+// Returns 6 PlainDate values: 2025-01-06, 2025-01-08, 2025-01-10, 2025-01-13, 2025-01-15, 2025-01-17
 
-```ts
-// Second Tuesday of every month
-{
-  freq: 'MONTHLY',
-  byDay: [{ weekday: 'TU', n: 2 }],
-}
+// Unbounded rule: use limit
+const next10 = expand({ freq: 'DAILY', dtstart: Temporal.PlainDate.from('2025-01-01') }, 10)
 
-// Last Friday of every year
-{
-  freq: 'YEARLY',
-  byDay: [{ weekday: 'FR', n: -1 }],
-}
+// ExpandOptions with after/before window
+const window = expand(
+  { freq: 'DAILY', dtstart: Temporal.PlainDate.from('2025-01-01') },
+  {
+    after: Temporal.PlainDate.from('2025-03-01'),
+    before: Temporal.PlainDate.from('2025-03-31'),
+    limit: 31,
+  }
+)
 ```
 
 ## iterate()
 
-`iterate()` is an async generator that yields one occurrence at a time. Use it for large or
-infinite sequences where loading the full array into memory is not practical:
+`iterate()` is a synchronous generator. It yields one occurrence at a time and is suitable for
+large or infinite sequences where you want to stop early:
 
 ```ts
 import { iterate } from 'rrule-ts'
+import { Temporal } from 'temporal-polyfill'
 
-for await (const date of iterate(options, { limit: 1000 })) {
-  // process one occurrence at a time
-  if (shouldStop(date)) break
+const gen = iterate({
+  freq: 'DAILY',
+  dtstart: Temporal.PlainDate.from('2025-01-01'),
+})
+
+for (const date of gen) {
+  if (date.year > 2025) break
+  console.log(date.toString())
 }
 ```
 
-## Example
+`iterate()` requires `dtstart` to be set. It throws a descriptive error if `dtstart` is absent.
+
+## The BY\* expand-vs-limit matrix
+
+RFC 5545 Table 1 specifies whether each BY\* modifier expands (adds candidates to the period set)
+or limits (filters existing candidates). The behavior depends on FREQ.
+
+### YEARLY
+
+| BY\* modifier | Role   | Notes                                                  |
+| ------------- | ------ | ------------------------------------------------------ |
+| `BYMONTH`     | Expand | Generates dates in each listed month of the year       |
+| `BYWEEKNO`    | Expand | Generates dates in each listed ISO week of the year    |
+| `BYYEARDAY`   | Expand | Generates the listed ordinal days of the year          |
+| `BYMONTHDAY`  | Expand | Generates the listed days of each expanded month       |
+| `BYDAY`       | Expand | Expands weekdays or ordinal weekdays within the period |
+| `BYHOUR`      | Expand | Expands each date into the listed hours                |
+| `BYMINUTE`    | Expand | Expands each hour into the listed minutes              |
+| `BYSECOND`    | Expand | Expands each minute into the listed seconds            |
+| `BYSETPOS`    | Filter | Selects positions from the final candidate set         |
+
+### MONTHLY
+
+| BY\* modifier | Role   | Notes                                                 |
+| ------------- | ------ | ----------------------------------------------------- |
+| `BYMONTH`     | Limit  | Skips months not in the list                          |
+| `BYWEEKNO`    | N/A    | Not applicable for MONTHLY (validation error)         |
+| `BYYEARDAY`   | N/A    | Not applicable for MONTHLY (validation error)         |
+| `BYMONTHDAY`  | Expand | Generates the listed days within each month           |
+| `BYDAY`       | Expand | Expands weekdays or ordinal weekdays within the month |
+| `BYHOUR`      | Expand | Expands each date into the listed hours               |
+| `BYMINUTE`    | Expand | Expands each hour into the listed minutes             |
+| `BYSECOND`    | Expand | Expands each minute into the listed seconds           |
+| `BYSETPOS`    | Filter | Selects positions from the monthly candidate set      |
+
+### WEEKLY
+
+| BY\* modifier | Role   | Notes                                             |
+| ------------- | ------ | ------------------------------------------------- |
+| `BYMONTH`     | Limit  | Skips days outside listed months                  |
+| `BYDAY`       | Expand | Expands into the listed weekdays within each week |
+| `BYHOUR`      | Expand | Expands each date into the listed hours           |
+| `BYMINUTE`    | Expand | Expands each hour into the listed minutes         |
+| `BYSECOND`    | Expand | Expands each minute into the listed seconds       |
+| `BYSETPOS`    | Filter | Selects positions from the weekly candidate set   |
+
+### DAILY
+
+| BY\* modifier | Role   | Notes                                                |
+| ------------- | ------ | ---------------------------------------------------- |
+| `BYMONTH`     | Limit  | Skips days outside listed months                     |
+| `BYMONTHDAY`  | Limit  | Skips days whose day-of-month is not listed          |
+| `BYDAY`       | Limit  | Skips days whose weekday is not listed (no ordinals) |
+| `BYYEARDAY`   | N/A    | Not applicable for DAILY per RFC 5545 Table 1        |
+| `BYHOUR`      | Expand | Expands each day into the listed hours               |
+| `BYMINUTE`    | Expand | Expands each hour into the listed minutes            |
+| `BYSECOND`    | Expand | Expands each minute into the listed seconds          |
+| `BYSETPOS`    | Filter | Selects positions from the daily candidate set       |
+
+### HOURLY / MINUTELY / SECONDLY
+
+For sub-daily frequencies, `BYMONTH`, `BYYEARDAY`, `BYMONTHDAY`, and `BYDAY` are all **Limit**
+modifiers. `BYHOUR`, `BYMINUTE`, and `BYSECOND` filter the advancing time value, while coarser
+BY\* parts act as day-level gates.
+
+## All 7 FREQ values
+
+| FREQ       | Base cadence                | `interval` default |
+| ---------- | --------------------------- | ------------------ |
+| `YEARLY`   | Once per calendar year      | 1                  |
+| `MONTHLY`  | Once per calendar month     | 1                  |
+| `WEEKLY`   | Once per WKST-anchored week | 1                  |
+| `DAILY`    | Once per calendar day       | 1                  |
+| `HOURLY`   | Once per hour               | 1                  |
+| `MINUTELY` | Once per minute             | 1                  |
+| `SECONDLY` | Once per second             | 1                  |
+
+`interval` multiplies the base cadence. `FREQ=WEEKLY;INTERVAL=2` produces one occurrence every two
+weeks, anchored on the week that contains `dtstart`.
+
+## BYSETPOS: selecting positions within the period
+
+`BYSETPOS` is applied after all other BY\* modifiers have assembled the candidate set for each
+period. A positive value selects from the start (1-indexed), a negative value from the end.
 
 ```ts
-import { parse, expand } from 'rrule-ts'
+import { expand } from 'rrule-ts'
+import { Temporal } from 'temporal-polyfill'
 
-const result = parse('RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR;COUNT=3')
-if (!result.ok) throw new Error(result.error)
+// Last weekday of every month
+const lastWeekday = expand({
+  freq: 'MONTHLY',
+  byDay: [
+    { weekday: 'MO', ordinal: undefined },
+    { weekday: 'TU', ordinal: undefined },
+    { weekday: 'WE', ordinal: undefined },
+    { weekday: 'TH', ordinal: undefined },
+    { weekday: 'FR', ordinal: undefined },
+  ],
+  bySetPos: [-1],
+  count: 3,
+  dtstart: Temporal.PlainDate.from('2025-01-01'),
+})
+// 2025-01-31, 2025-02-28, 2025-03-31
 
-const dates = expand(result.value)
-// [PlainDate('2024-01-01'), PlainDate('2024-01-03'), PlainDate('2024-01-05')]
+// Second-to-last day of every month
+const secondToLast = expand({
+  freq: 'MONTHLY',
+  byMonthDay: [-2],
+  count: 3,
+  dtstart: Temporal.PlainDate.from('2025-01-01'),
+})
+// 2025-01-30, 2025-02-27, 2025-03-30
+```
+
+<Aside type="note" title="BYSETPOS and period scope">
+  BYSETPOS selects from all candidates within one period, not from the entire sequence. For MONTHLY
+  rules it selects within the month, for WEEKLY rules within the week, and for YEARLY rules within
+  the year.
+</Aside>
+
+## Ordinal BYDAY
+
+A `WeekdayNum` with `ordinal` set selects a specific numbered occurrence of that weekday within
+the period. Positive ordinals count from the start; negative ordinals count from the end.
+
+```ts
+import { expand } from 'rrule-ts'
+import { Temporal } from 'temporal-polyfill'
+
+// Second Tuesday of every month
+const secondTuesday = expand({
+  freq: 'MONTHLY',
+  byDay: [{ weekday: 'TU', ordinal: 2 }],
+  count: 3,
+  dtstart: Temporal.PlainDate.from('2025-01-01'),
+})
+// 2025-01-14, 2025-02-11, 2025-03-11
+
+// Last Friday of every month
+const lastFriday = expand({
+  freq: 'MONTHLY',
+  byDay: [{ weekday: 'FR', ordinal: -1 }],
+  count: 3,
+  dtstart: Temporal.PlainDate.from('2025-01-01'),
+})
+// 2025-01-31, 2025-02-28, 2025-03-28
+
+// 20th Monday of every year (ordinal BYDAY in YEARLY context)
+const twentieth = expand({
+  freq: 'YEARLY',
+  byDay: [{ weekday: 'MO', ordinal: 20 }],
+  count: 2,
+  dtstart: Temporal.PlainDate.from('2025-01-01'),
+})
+```
+
+## BY\* interaction: intersection rules
+
+When multiple BY\* modifiers coexist, their rules intersect rather than union:
+
+- `BYMONTHDAY=15` and `BYDAY=MO` together select only Mondays that fall on the 15th.
+- `BYWEEKNO=10` and `BYDAY=WE` select only Wednesdays in ISO week 10.
+- `BYYEARDAY=100` and `BYMONTH=4` select only year-day 100 if it falls in April.
+
+```ts
+// Monthly rule: only Mondays on the 15th (rare; empty months are skipped)
+expand({
+  freq: 'MONTHLY',
+  byMonthDay: [15],
+  byDay: [{ weekday: 'MO', ordinal: undefined }],
+  count: 5,
+  dtstart: Temporal.PlainDate.from('2024-01-01'),
+})
+```
+
+## FREQ examples across types
+
+```ts
+import { expand } from 'rrule-ts'
+import { Temporal } from 'temporal-polyfill'
+
+const start = Temporal.PlainDate.from('2025-01-01')
+
+// Every 2 weeks on Tuesday and Thursday
+expand({
+  freq: 'WEEKLY',
+  interval: 2,
+  byDay: [
+    { weekday: 'TU', ordinal: undefined },
+    { weekday: 'TH', ordinal: undefined },
+  ],
+  count: 4,
+  dtstart: start,
+})
+// 2025-01-02, 2025-01-09 ... actually anchored to start's week
+
+// Every year in March on the first Monday
+expand({
+  freq: 'YEARLY',
+  byMonth: [3],
+  byDay: [{ weekday: 'MO', ordinal: 1 }],
+  count: 3,
+  dtstart: start,
+})
+
+// Every day at 9:00 and 17:00
+expand({
+  freq: 'DAILY',
+  byHour: [9, 17],
+  byMinute: [0],
+  count: 6,
+  dtstart: Temporal.PlainDateTime.from('2025-01-01T09:00:00'),
+})
+// 2025-01-01T09:00, 2025-01-01T17:00, 2025-01-02T09:00, ...
 ```

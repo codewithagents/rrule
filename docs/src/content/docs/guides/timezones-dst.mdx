@@ -7,18 +7,55 @@ import { Aside } from '@astrojs/starlight/components'
 
 Daylight saving time transitions create two classes of problems for RRULE expansion:
 
-- **Spring-forward gaps.** Clocks skip from 1:59 AM directly to 3:00 AM. A time like 2:30 AM does
-  not exist on that day.
-- **Fall-back ambiguities.** Clocks repeat from 2:00 AM back to 1:00 AM. A time like 1:30 AM
-  occurs twice.
+- **Spring-forward gaps.** Clocks skip an hour. A computed local time like 02:30 does not exist on
+  the transition day.
+- **Fall-back ambiguities.** Clocks repeat an hour. A computed local time like 01:30 occurs twice
+  on the transition day.
 
-Date-based RRULE libraries handle these incorrectly or inconsistently because `Date` has no
-concept of a named timezone. rrule-ts uses `Temporal.ZonedDateTime`, which resolves both problems
+Date-based libraries handle these problems inconsistently because JavaScript's `Date` object has
+no concept of a named timezone. rrule-ts uses Temporal throughout, which resolves both problems
 with explicit disambiguation semantics.
+
+## Temporal and polyfill setup
+
+rrule-ts is Temporal-native and has zero runtime dependencies. It reads Temporal from two sources
+in order:
+
+1. `globalThis.Temporal` when present (Node.js 26+, modern browsers with native Temporal).
+2. An implementation injected via `setTemporal()` by the caller.
+
+If neither is available, `getTemporal()` throws a descriptive error.
+
+On Node.js below 26 or older browsers, install a polyfill and inject it once before any
+expansion:
+
+```ts
+import { setTemporal } from 'rrule-ts'
+import { Temporal } from 'temporal-polyfill'
+
+setTemporal(Temporal)
+```
+
+Do this at the top of your entry point, before any call to `expand()`, `iterate()`, or
+`RRuleSet`.
+
+## Wall-clock semantics
+
+rrule-ts uses wall-clock semantics throughout.
+
+For DAILY and coarser frequencies (WEEKLY, MONTHLY, YEARLY), the engine advances a `PlainDate`
+counter by the rule interval and pairs each resulting date with the same time components taken
+from `dtstart`. Each occurrence is then resolved to a `ZonedDateTime` in the rule's timezone via
+`Temporal.ZonedDateTime.from`. As a result, a daily 09:00 meeting stays at 09:00 local time
+before and after a DST transition, even though the UTC offset changes.
+
+For sub-daily frequencies (HOURLY, MINUTELY, SECONDLY), the engine advances using wall-clock
+arithmetic on the time fields. The UTC-elapsed distance between consecutive occurrences can vary
+across DST boundaries.
 
 ## The four dtstart types
 
-The type of `dtstart` controls how expansion behaves:
+The type of `dtstart` controls how occurrences are returned:
 
 | Type                     | Semantics                                                             |
 | ------------------------ | --------------------------------------------------------------------- |
@@ -28,50 +65,49 @@ The type of `dtstart` controls how expansion behaves:
 | `Temporal.ZonedDateTime` | Timezone-aware: wall-clock time in a named IANA timezone, DST-correct |
 
 For calendar events that need to respect local time (meetings, appointments), use
-`Temporal.ZonedDateTime`. Each occurrence is computed in the named timezone, respecting wall-clock
-semantics at each expansion point.
+`Temporal.ZonedDateTime`.
 
-## Choosing the right type
+## Fall-back: the repeated hour
 
-Use `PlainDate` for all-day events (birthdays, holidays, full-day blocks).
+When a computed local time falls in a fall-back ambiguity (clocks are set back and a local hour
+occurs twice), rrule-ts resolves the ambiguity with `disambiguation: 'compatible'`. The
+`'compatible'` setting selects the **earlier** of the two possible instants, equivalent to
+`fold=0` in Python's `datetime`. This matches python-dateutil's fall-back behavior exactly.
 
-Use `PlainDateTime` for floating times that have no timezone (e.g. "every day at 9 AM, wherever
-the user happens to be").
+## Spring-forward: the skipped hour
 
-Use `Instant` for UTC-fixed events (server-side cron jobs, log timestamps).
+When a computed local time falls in a spring-forward gap (a local time that does not exist),
+rrule-ts again applies `disambiguation: 'compatible'`. For a skipped time, `'compatible'` shifts
+the wall-clock time **forward** to the first valid instant after the gap.
 
-Use `ZonedDateTime` for user-facing calendar events with a specific timezone (meetings, reminders).
+**Example.** In `America/Los_Angeles`, clocks jump from 02:00 to 03:00 on the spring-forward
+Sunday. If the rule computes 02:30 as an occurrence:
 
-## DST torture cases from the conformance corpus
+- rrule-ts emits `03:30-07:00` (the first valid instant after the gap, UTC epoch unchanged).
+- python-dateutil preserves the original wall-clock digits with the pre-gap offset: `02:30-08:00`.
 
-The conformance suite includes 16 DST edge cases across four timezone families:
+The resulting ISO strings differ, but the epoch milliseconds are identical. Downstream consumers
+that compare by timestamp are unaffected.
 
-**America/Los_Angeles (spring-forward in March)**
+This is a deliberate deviation from python-dateutil. rrule-ts, via Temporal, always emits a
+valid instant. python-dateutil's output describes an instant that does not exist in the timezone.
 
-When a weekly rule generates an occurrence at 2:30 AM on the spring-forward day, Temporal uses
-`'skip'` disambiguation by default, moving the time forward to 3:30 AM (the first valid time after
-the gap).
+## Documented spring-forward conformance cases
 
-**Europe/Berlin (spring-forward in March, fall-back in October)**
+The conformance suite contains three hand-authored cases that cover this deviation explicitly:
 
-Weekly rules crossing the fall-back transition generate two wall-clock instances of the same time.
-Temporal's `'compatible'` disambiguation selects the first (pre-transition) occurrence.
+| Case ID                      | Timezone              | Description                                                                   |
+| ---------------------------- | --------------------- | ----------------------------------------------------------------------------- |
+| `dst-la-spring-daily`        | `America/Los_Angeles` | 02:30 in spring-forward gap; dateutil: `02:30-08:00`; rrule-ts: `03:30-07:00` |
+| `dst-berlin-spring-daily`    | `Europe/Berlin`       | 02:00 in spring-forward gap; dateutil: `02:00+01:00`; rrule-ts: `03:00+02:00` |
+| `dst-lord-howe-spring-daily` | `Australia/Lord_Howe` | 02:00 in 30-min gap; dateutil: `02:00+10:30`; rrule-ts: `02:30+11:00`         |
 
-**Australia/Lord_Howe (30-minute DST offset)**
+These cases are intentionally excluded from the oracle-derived corpus and are maintained as
+hand-authored diff tests.
 
-Lord Howe Island uses a 30-minute DST offset, not the usual 60 minutes. rrule-ts handles
-non-standard offsets correctly because Temporal's timezone support is not limited to whole-hour
-offsets.
-
-**Pacific/Apia (UTC+13/+14, date-line crossing)**
-
-Samoa moved across the international date line in 2011. Rules that span this transition require
-correct calendar arithmetic that goes beyond simple UTC offset math.
-
-<Aside type="note" title="Polyfill and DST">
-  DST-correct behavior requires a Temporal implementation that supports named IANA timezones. Ensure
-  `setTemporal()` is called with a timezone-capable polyfill on Node versions below 26. The
-  `temporal-polyfill` package supports named timezones via the system timezone database.
+<Aside type="note" title="Lord Howe Island">
+  `Australia/Lord_Howe` uses a 30-minute DST offset. rrule-ts handles non-standard offsets correctly
+  because Temporal's timezone support is not limited to whole-hour offsets.
 </Aside>
 
 ## Example: weekly meeting in a named timezone
@@ -86,10 +122,34 @@ import { expand } from 'rrule-ts'
 
 const occurrences = expand({
   freq: 'WEEKLY',
-  byDay: [{ weekday: 'MO' }],
+  byDay: [{ weekday: 'MO', ordinal: undefined }],
   count: 5,
-  dtstart: Temporal.ZonedDateTime.from('2024-03-04T09:00:00[America/New_York]'),
+  dtstart: Temporal.ZonedDateTime.from('2025-03-03T09:00:00[America/New_York]'),
 })
-// Each occurrence is a ZonedDateTime in America/New_York,
-// correctly handling the spring-forward on 2024-03-10.
+// Each occurrence is a ZonedDateTime in America/New_York.
+// The spring-forward on 2025-03-09 does not affect the Monday 09:00 occurrences
+// because 09:00 is outside the gap. The UTC offset changes from -05:00 to -04:00
+// after the transition.
+```
+
+## Example: daily rule across spring-forward
+
+```ts
+import { setTemporal, expand } from 'rrule-ts'
+import { Temporal } from 'temporal-polyfill'
+
+setTemporal(Temporal)
+
+// 02:30 daily in Los Angeles. The spring-forward day (2025-03-09) has no 02:30,
+// so rrule-ts emits 03:30-07:00 on that day.
+expand({
+  freq: 'DAILY',
+  count: 5,
+  dtstart: Temporal.ZonedDateTime.from('2025-03-07T02:30:00[America/Los_Angeles]'),
+})
+// 2025-03-07T02:30:00-08:00[America/Los_Angeles]
+// 2025-03-08T02:30:00-08:00[America/Los_Angeles]
+// 2025-03-09T03:30:00-07:00[America/Los_Angeles]  <- gap: 02:30 shifted to 03:30
+// 2025-03-10T02:30:00-07:00[America/Los_Angeles]
+// 2025-03-11T02:30:00-07:00[America/Los_Angeles]
 ```

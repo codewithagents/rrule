@@ -1,14 +1,14 @@
 ---
 title: toText and fromText
-description: Human-readable rendering of RRuleOptions via the rrule-ts/text tree-shakeable subpath.
+description: Human-readable rendering of RRuleOptions via the rrule-ts/text tree-shakeable subpath. toText never throws; complex rules render a fallback phrase. fromText parses English only and returns a Result.
 ---
 
 import { Aside } from '@astrojs/starlight/components'
 
-`toText()` converts an `RRuleOptions` to a human-readable string. `fromText()` parses a
-human-readable string back to a `Result<RRuleOptions>`.
+`toText()` converts `RRuleOptions` to a human-readable string. `fromText()` parses a
+human-readable English string back to `Result<RRuleOptions, string>`.
 
-These functions live in a separate subpath so bundles only pay for them when imported:
+Both functions live in a separate subpath so bundles only include them when imported:
 
 ```ts
 import { toText, fromText } from 'rrule-ts/text'
@@ -17,69 +17,246 @@ import { toText, fromText } from 'rrule-ts/text'
 ## toText()
 
 ```ts
-function toText(options: RRuleOptions, locale?: Locale): string
+import { toText } from 'rrule-ts/text'
+
+function toText(options: RRuleOptions, textOptions?: TextOptions): string
+
+interface TextOptions {
+  locale?: LocalePack
+}
 ```
 
-Example output:
+`toText()` never throws. When the rule cannot be expressed as a natural sentence it returns the
+locale's fallback phrase. For the English locale this is `'(complex recurrence rule)'`.
+
+### Basic examples
 
 ```ts
 import { toText } from 'rrule-ts/text'
 
-toText({ freq: 'WEEKLY', byDay: [{ weekday: 'MO' }, { weekday: 'WE' }], count: 10 })
-// 'every week on Monday and Wednesday for 10 times'
+toText({ freq: 'DAILY' })
+// 'every day'
+
+toText({ freq: 'WEEKLY', interval: 2 })
+// 'every 2 weeks'
+
+toText({
+  freq: 'WEEKLY',
+  byDay: [
+    { weekday: 'MO', ordinal: undefined },
+    { weekday: 'WE', ordinal: undefined },
+    { weekday: 'FR', ordinal: undefined },
+  ],
+})
+// 'every week on Monday, Wednesday, and Friday'
+
+toText({ freq: 'MONTHLY', byDay: [{ weekday: 'TU', ordinal: 2 }] })
+// 'every month on the 2nd Tuesday'
+
+toText({ freq: 'MONTHLY', byDay: [{ weekday: 'FR', ordinal: -1 }] })
+// 'every month on the last Friday'
+
+toText({ freq: 'DAILY', count: 5 })
+// 'every day, 5 times'
+
+toText({
+  freq: 'WEEKLY',
+  byDay: [{ weekday: 'MO', ordinal: undefined }],
+  until: Temporal.PlainDate.from('2025-12-31'),
+})
+// 'every week on Monday until December 31, 2025'
 ```
 
-The optional `locale` parameter accepts a locale pack from `rrule-ts/locales/*`. Without it, the
-default English locale is used.
+### BYMONTH examples
+
+```ts
+toText({ freq: 'YEARLY', byMonth: [1] })
+// 'every year in January'
+
+toText({ freq: 'YEARLY', byMonth: [6, 12] })
+// 'every year in June and December'
+```
+
+### BYMONTHDAY examples
+
+```ts
+toText({ freq: 'MONTHLY', byMonthDay: [1] })
+// 'every month on the 1st'
+
+toText({ freq: 'MONTHLY', byMonthDay: [15, 30] })
+// 'every month on the 15th and 30th'
+
+toText({ freq: 'MONTHLY', byMonthDay: [-1] })
+// 'every month on the last day'
+```
+
+### BYSETPOS examples
+
+```ts
+// Last weekday of every month
+toText({
+  freq: 'MONTHLY',
+  byDay: [
+    { weekday: 'MO', ordinal: undefined },
+    { weekday: 'TU', ordinal: undefined },
+    { weekday: 'WE', ordinal: undefined },
+    { weekday: 'TH', ordinal: undefined },
+    { weekday: 'FR', ordinal: undefined },
+  ],
+  bySetPos: [-1],
+})
+// 'every month on the last weekday'
+
+// 3rd Thursday of every month (via BYSETPOS)
+toText({
+  freq: 'MONTHLY',
+  byDay: [{ weekday: 'TH', ordinal: undefined }],
+  bySetPos: [3],
+})
+// 'every month on the 3rd Thursday'
+```
+
+### BYHOUR examples
+
+```ts
+toText({ freq: 'DAILY', byHour: [9, 17], byMinute: [0] })
+// 'every day at 9:00 and 17:00'
+
+toText({ freq: 'DAILY', byHour: [9], byMinute: [30] })
+// 'every day at 9:30'
+```
+
+### Complex rule fallback
+
+Rules that cannot be expressed naturally return the fallback phrase. Never throw.
+
+```ts
+toText({ freq: 'YEARLY', byWeekNo: [10] })
+// '(complex recurrence rule)'
+
+toText({ freq: 'YEARLY', byYearDay: [100] })
+// '(complex recurrence rule)'
+
+// BYSETPOS with multiple positions
+toText({
+  freq: 'MONTHLY',
+  byDay: [{ weekday: 'MO', ordinal: undefined }],
+  bySetPos: [1, -1],
+})
+// '(complex recurrence rule)'
+```
+
+Rules that trigger the fallback:
+
+- Any rule with `BYWEEKNO`
+- Any rule with `BYYEARDAY`
+- `BYDAY` and `BYMONTHDAY` together
+- `BYMINUTE` with more than one value
+- `BYSETPOS` with more than one position
+- `BYSETPOS` combined with `BYMONTH`, `BYMONTHDAY`, `BYHOUR`, `BYMINUTE`, or `BYSECOND`
+- `BYSETPOS` without `BYDAY`
+- `BYSETPOS` with ordinal `BYDAY` entries
+- `BYSETPOS` with a multi-weekday set that is not exactly Mon-Fri and position not -1
 
 ## fromText()
 
 ```ts
-function fromText(text: string, locale?: Locale): Result<RRuleOptions, string>
+import { fromText } from 'rrule-ts/text'
+
+function fromText(text: string): Result<RRuleOptions, string>
 ```
 
-`fromText()` parses a human-readable recurrence description back to `RRuleOptions`:
+`fromText()` parses canonical English output produced by `toText()`. It is not a general
+natural-language parser. It is English-only: there is no locale parameter.
+
+It returns `{ ok: true, value: RRuleOptions }` on success and `{ ok: false, error: string }` on
+failure. It never throws.
+
+### Examples
 
 ```ts
 import { fromText } from 'rrule-ts/text'
 
-const result = fromText('every week on Monday and Wednesday for 10 times')
-if (result.ok) {
-  console.log(result.value.freq) // 'WEEKLY'
+fromText('every day')
+// { ok: true, value: { freq: 'DAILY' } }
+
+fromText('every week on Monday')
+// { ok: true, value: { freq: 'WEEKLY', byDay: [{ weekday: 'MO', ordinal: undefined }] } }
+
+fromText('every 2 weeks')
+// { ok: true, value: { freq: 'WEEKLY', interval: 2 } }
+
+fromText('every month on the 2nd Tuesday')
+// { ok: true, value: { freq: 'MONTHLY', byDay: [{ weekday: 'TU', ordinal: 2 }] } }
+
+fromText('every month on the last Friday')
+// { ok: true, value: { freq: 'MONTHLY', byDay: [{ weekday: 'FR', ordinal: -1 }] } }
+
+fromText('every day, 5 times')
+// { ok: true, value: { freq: 'DAILY', count: 5 } }
+
+fromText('every week on Monday, Wednesday, and Friday')
+// { ok: true, value: { freq: 'WEEKLY', byDay: [
+//   { weekday: 'MO', ordinal: undefined },
+//   { weekday: 'WE', ordinal: undefined },
+//   { weekday: 'FR', ordinal: undefined },
+// ] } }
+
+fromText('not a recurrence rule')
+// { ok: false, error: "fromText: expected 'every', got 'not'" }
+```
+
+### Using the result
+
+```ts
+import { fromText } from 'rrule-ts/text'
+import { expand } from 'rrule-ts'
+import { Temporal } from 'temporal-polyfill'
+
+const result = fromText('every week on Monday and Wednesday, 6 times')
+if (!result.ok) {
+  console.error('parse error:', result.error)
+} else {
+  const dates = expand({
+    ...result.value,
+    dtstart: Temporal.PlainDate.from('2025-01-06'),
+  })
+  console.log(dates.map((d) => d.toString()))
 }
 ```
 
-Returns a `Result` and never throws.
+## The round-trip guarantee
+
+For all `RRuleOptions` where `toText()` does not return the fallback phrase, `fromText()` of
+that output returns the original options.
+
+Formally: for all `x` where `toText(x)` is not `'(complex recurrence rule)'`,
+`fromText(toText(x)).value` deep-equals `x`.
+
+**Documented exclusions from the guarantee:**
+
+- `dtstart`, `tzid`, `wkst`, `bySecond`: these fields do not appear in text output and are
+  absent from the `fromText()` result.
+- `byMinute: [0]`: indistinguishable from `byMinute: undefined` in the rendered text. Both
+  render as `:00` in a time clause. `fromText()` omits `byMinute` when the rendered minute is 0.
+- `BYSETPOS` with a single plain weekday: rendered as an ordinal `BYDAY` phrase (for example,
+  `bySetPos: [3], byDay: [{ weekday: 'TH' }]` renders as `'on the 3rd Thursday'`, which
+  `fromText()` parses back as `byDay: [{ weekday: 'TH', ordinal: 3 }]` without `bySetPos`).
 
 ## toText vs stringify
 
-|                | `toText()`                | `stringify()`                   |
-| -------------- | ------------------------- | ------------------------------- |
-| Output         | `every week on Monday...` | `RRULE:FREQ=WEEKLY;...`         |
-| Purpose        | User-facing display       | Storage, wire format, iCalendar |
-| Round-trip     | No (loses precision)      | Yes                             |
-| Locale support | Yes                       | No                              |
+|                | `toText()`                  | `stringify()`                   |
+| -------------- | --------------------------- | ------------------------------- |
+| Output         | `every week on Monday...`   | `RRULE:FREQ=WEEKLY;...`         |
+| Purpose        | User-facing display         | Storage, wire format, iCalendar |
+| Round-trip     | Partial (documented limits) | Exact                           |
+| Locale support | Yes                         | No                              |
 
 Use `stringify()` when storing or transmitting the rule. Use `toText()` when displaying it to a
-user in a UI (for example, in an event description or tooltip).
+user.
 
-<Aside type="note" title="Round-trip limitations">
-  The `toText` to `fromText` round-trip may lose information that natural language cannot express.
-  For example, rules with many BY* combinations may not round-trip exactly. Always use `stringify()`
-  for storage and `toText()` only for display.
+<Aside type="note" title="toText is not a serialization format">
+  `toText()` output is for human display only. Do not store it and expect to parse it back
+  losslessly. Use `stringify()` for storage and pass the stored RRULE string through `parse()` when
+  you need to expand it again.
 </Aside>
-
-## Locale parameter
-
-Pass a locale pack to render in a different language:
-
-```ts
-import { toText } from 'rrule-ts/text'
-import de from 'rrule-ts/locales/de'
-
-toText({ freq: 'WEEKLY', count: 5 }, de)
-// 'jede Woche 5 Mal'
-```
-
-See the [i18n locales guide](/guides/i18n-locales) for the full list of built-in locales and how
-to write a custom one.

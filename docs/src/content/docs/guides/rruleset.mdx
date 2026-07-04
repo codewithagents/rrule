@@ -3,81 +3,222 @@ title: RRuleSet
 description: Combine RRULE, RDATE, EXRULE, and EXDATE into a single chronologically merged occurrence sequence.
 ---
 
-`RRuleSet` combines multiple recurrence sources into a single, chronologically ordered sequence.
-Use it when a single RRULE is not sufficient: for example, a recurring meeting with a specific
-occurrence cancelled, or a one-off addition outside the rule.
+import { Aside } from '@astrojs/starlight/components'
 
-## API overview
+`RRuleSet` combines multiple recurrence sources into a single, chronologically ordered,
+deduplicated occurrence stream. Use it when a single RRULE is not enough: for example, a recurring
+meeting with one cancelled date, a one-off addition outside the rule, or two separate rules merged
+into one calendar view.
+
+## Import
 
 ```ts
 import { RRuleSet } from 'rrule-ts'
+```
 
-const set = new RRuleSet()
+## Class API
 
-// Add a recurrence rule (can call multiple times)
-set.addRRule(rruleOptions)
+```ts
+class RRuleSet {
+  addRRule(options: RRuleOptions): this
+  addExRule(options: RRuleOptions): this
+  addRDate(date: RRuleDtstart): this
+  addExDate(date: RRuleDtstart): this
 
-// Add a single extra date (RDATE)
-set.addRDate(temporalDate)
-
-// Exclude all occurrences matching a rule (EXRULE)
-set.addExRule(rruleOptions)
-
-// Exclude a specific date (EXDATE)
-set.addExDate(temporalDate)
-
-// Expand the full merged sequence
-const dates = set.expand({ limit: 100 })
-
-// Or iterate lazily
-for await (const date of set.iterate({ limit: 100 })) {
-  // ...
+  expand(limit?: number): RRuleDtstart[]
+  [Symbol.iterator](): Iterator<RRuleDtstart>
 }
 ```
 
-## Use cases
+All `add*` methods return `this` so calls can be chained.
 
-**Cancel a specific occurrence (EXDATE)**
+### addRRule
+
+Adds a recurrence rule. Multiple rules can be added and their occurrences are merged.
+
+### addExRule
+
+Adds an exclusion rule. Every occurrence produced by this rule is removed from the final output.
+
+### addRDate
+
+Adds a single explicit inclusion date. The date is merged into the output in chronological order.
+
+### addExDate
+
+Adds a single explicit exclusion date. That specific occurrence is removed from the output.
+
+### expand(limit?)
+
+Materializes up to `limit` occurrences into an array. If `limit` is omitted the engine collects
+all occurrences up to its internal safety cap (50,000). For bounded rules (those with `count` or
+`until`) you can omit the limit.
+
+### Symbol.iterator
+
+`RRuleSet` is iterable. Use a `for...of` loop to consume occurrences one at a time without
+materializing the full array:
 
 ```ts
-const set = new RRuleSet()
-set.addRRule({ freq: 'WEEKLY', byDay: [{ weekday: 'MO' }], count: 10 })
-set.addExDate(Temporal.PlainDate.from('2024-01-08'))
-// The occurrence on 2024-01-08 is excluded from the result
+for (const occ of set) {
+  if (shouldStop(occ)) break
+}
 ```
-
-**Add a one-off date outside the rule (RDATE)**
-
-```ts
-const set = new RRuleSet()
-set.addRRule({ freq: 'WEEKLY', byDay: [{ weekday: 'MO' }], count: 5 })
-set.addRDate(Temporal.PlainDate.from('2024-01-10'))
-// 2024-01-10 (a Wednesday) is included alongside the Monday occurrences
-```
-
-**Multiple rules merged (RRULE + RRULE)**
-
-```ts
-const set = new RRuleSet()
-set.addRRule({ freq: 'WEEKLY', byDay: [{ weekday: 'MO' }], count: 5 })
-set.addRRule({ freq: 'WEEKLY', byDay: [{ weekday: 'WE' }], count: 5 })
-// Occurrences from both rules are merged in chronological order
-```
-
-## Result ordering
-
-Occurrences from all RRULE and RDATE sources are merged and returned in chronological order.
-
-## Deduplication
-
-If the same datetime appears from multiple sources (for example, two rules that both generate an
-occurrence on the same day), it appears only once in the result.
 
 ## iCalendar mapping
 
-| iCalendar component | RRuleSet method      |
-| ------------------- | -------------------- |
-| `RRULE`             | `addRRule(options)`  |
-| `RDATE`             | `addRDate(date)`     |
-| `EXRULE`            | `addExRule(options)` |
-| `EXDATE`            | `addExDate(date)`    |
+| iCalendar property | `RRuleSet` method    |
+| ------------------ | -------------------- |
+| `RRULE`            | `addRRule(options)`  |
+| `RDATE`            | `addRDate(date)`     |
+| `EXRULE`           | `addExRule(options)` |
+| `EXDATE`           | `addExDate(date)`    |
+
+## How inclusions and exclusions merge
+
+1. All EXRULE iterators are fully consumed first. Every occurrence they produce is added to an
+   exclusion key set.
+2. All EXDATE values are added to the same exclusion key set.
+3. All RRULE iterators are consumed up to the internal limit, and all RDATE values are collected.
+4. The combined inclusion candidates are sorted chronologically and deduplicated.
+5. Any candidate whose key appears in the exclusion set is dropped.
+6. The remaining occurrences are emitted in order, up to `limit`.
+
+Deduplication is by value, not by index. If two rules produce the same instant or date, it appears
+only once in the output.
+
+<Aside type="caution" title="EXRULE consumes eagerly">
+  Exclusion rules are fully materialized before inclusion begins. For bounded EXRULE rules (COUNT or
+  UNTIL) this is fine. Avoid unbounded EXRULE rules: the engine will consume up to its internal
+  safety cap when materializing exclusions.
+</Aside>
+
+## Examples
+
+### Cancel a specific occurrence (EXDATE)
+
+```ts
+import { RRuleSet } from 'rrule-ts'
+import { Temporal } from 'temporal-polyfill'
+
+const set = new RRuleSet()
+set.addRRule({
+  freq: 'WEEKLY',
+  byDay: [{ weekday: 'MO', ordinal: undefined }],
+  count: 5,
+  dtstart: Temporal.PlainDate.from('2025-01-06'),
+})
+set.addExDate(Temporal.PlainDate.from('2025-01-13'))
+
+const dates = set.expand()
+// [2025-01-06, 2025-01-20, 2025-01-27, 2025-02-03, 2025-02-10]
+// 2025-01-13 is excluded
+```
+
+### Add a one-off date outside the rule (RDATE)
+
+```ts
+import { RRuleSet } from 'rrule-ts'
+import { Temporal } from 'temporal-polyfill'
+
+const set = new RRuleSet()
+set.addRRule({
+  freq: 'WEEKLY',
+  byDay: [{ weekday: 'MO', ordinal: undefined }],
+  count: 3,
+  dtstart: Temporal.PlainDate.from('2025-01-06'),
+})
+set.addRDate(Temporal.PlainDate.from('2025-01-10')) // a Friday
+
+const dates = set.expand()
+// [2025-01-06, 2025-01-10, 2025-01-13, 2025-01-20]
+// 2025-01-10 is merged in chronological position
+```
+
+### Two rules merged
+
+```ts
+import { RRuleSet } from 'rrule-ts'
+import { Temporal } from 'temporal-polyfill'
+
+const set = new RRuleSet()
+
+// Weekly Monday rule
+set.addRRule({
+  freq: 'WEEKLY',
+  byDay: [{ weekday: 'MO', ordinal: undefined }],
+  count: 3,
+  dtstart: Temporal.PlainDate.from('2025-01-06'),
+})
+
+// Weekly Wednesday rule
+set.addRRule({
+  freq: 'WEEKLY',
+  byDay: [{ weekday: 'WE', ordinal: undefined }],
+  count: 3,
+  dtstart: Temporal.PlainDate.from('2025-01-08'),
+})
+
+const dates = set.expand()
+// [2025-01-06, 2025-01-08, 2025-01-13, 2025-01-15, 2025-01-20, 2025-01-22]
+// Both rules merged in chronological order
+```
+
+### Exclude an entire weekday (EXRULE)
+
+```ts
+import { RRuleSet } from 'rrule-ts'
+import { Temporal } from 'temporal-polyfill'
+
+const start = Temporal.PlainDate.from('2025-01-01')
+
+const set = new RRuleSet()
+// Daily for 14 days
+set.addRRule({ freq: 'DAILY', count: 14, dtstart: start })
+// Exclude every Saturday and Sunday
+set.addExRule({
+  freq: 'WEEKLY',
+  byDay: [
+    { weekday: 'SA', ordinal: undefined },
+    { weekday: 'SU', ordinal: undefined },
+  ],
+  count: 4,
+  dtstart: start,
+})
+
+const dates = set.expand()
+// Weekdays only from 2025-01-01 through 2025-01-14
+```
+
+### Chaining calls
+
+```ts
+const dates = new RRuleSet()
+  .addRRule({
+    freq: 'WEEKLY',
+    byDay: [{ weekday: 'MO', ordinal: undefined }],
+    count: 5,
+    dtstart: start,
+  })
+  .addRDate(extraDate)
+  .addExDate(cancelledDate)
+  .expand(10)
+```
+
+### Lazy iteration
+
+```ts
+const set = new RRuleSet()
+set.addRRule({ freq: 'DAILY', dtstart: Temporal.PlainDate.from('2025-01-01') })
+
+let count = 0
+for (const occ of set) {
+  console.log(occ.toString())
+  if (++count >= 5) break
+}
+```
+
+## Result ordering and deduplication
+
+Occurrences are always emitted in chronological (ascending) order regardless of the order rules
+were added. Dates that appear from more than one source appear only once.

@@ -1,62 +1,328 @@
 ---
 title: i18n Locales
-description: Built-in locale packs for toText and fromText, the Locale interface, and how to write a custom locale.
+description: The LocalePack contract, bundled English and German locale packs, German output examples, tree-shakeability, and how to add a new locale.
 ---
 
-Locale packs control the language used by `toText()` and `fromText()`. Each locale is a separate
-subpath import so bundles only include the locales they use.
+import { Aside } from '@astrojs/starlight/components'
+
+Locale packs control the language used by `toText()`. Each locale is a separate subpath import,
+so bundles only include the locales they use: importing `rrule-ts/locales/de` without using it
+adds zero bytes to a bundle that tree-shakes.
 
 ## Built-in locales
 
-| Subpath               | Language          |
-| --------------------- | ----------------- |
-| `rrule-ts/locales/en` | English (default) |
-| `rrule-ts/locales/de` | German            |
+| Import path           | Export | Language          |
+| --------------------- | ------ | ----------------- |
+| `rrule-ts/locales/en` | `en`   | English (default) |
+| `rrule-ts/locales/de` | `de`   | German            |
 
-## Importing a locale
+The English locale is the default. `toText(options)` without a `TextOptions` argument uses it
+automatically. You do not need to import `rrule-ts/locales/en` unless you want the `LocalePack`
+type or want to reference it explicitly.
+
+## Passing a locale to toText
 
 ```ts
 import { toText } from 'rrule-ts/text'
-import de from 'rrule-ts/locales/de'
+import { de } from 'rrule-ts/locales/de'
 
-toText({ freq: 'DAILY', count: 7 }, de)
-// 'jeden Tag 7 Mal'
+toText({ freq: 'DAILY' }, { locale: de })
+// 'jeden Tag'
 ```
 
 ```ts
-import en from 'rrule-ts/locales/en'
+import { toText } from 'rrule-ts/text'
+import { en } from 'rrule-ts/locales/en'
 
-toText({ freq: 'DAILY', count: 7 }, en)
-// 'every day for 7 times'
+toText({ freq: 'DAILY' }, { locale: en })
+// 'every day'
 ```
 
-## The Locale interface
+## German output examples
 
-To write a custom locale, implement the `Locale` interface from `rrule-ts/locales/types`:
+The German locale handles grammatical gender (jeden/jede/jedes) and uses period-suffix ordinals
+(1., 2., 3.) instead of English suffixes (1st, 2nd, 3rd).
 
 ```ts
-import type { Locale } from 'rrule-ts/locales/types'
+import { toText } from 'rrule-ts/text'
+import { de } from 'rrule-ts/locales/de'
+
+// Frequency intervals
+toText({ freq: 'DAILY' }, { locale: de })
+// 'jeden Tag'
+
+toText({ freq: 'DAILY', interval: 2 }, { locale: de })
+// 'alle 2 Tage'
+
+toText({ freq: 'WEEKLY' }, { locale: de })
+// 'jede Woche'
+
+toText({ freq: 'WEEKLY', interval: 3 }, { locale: de })
+// 'alle 3 Wochen'
+
+toText({ freq: 'MONTHLY' }, { locale: de })
+// 'jeden Monat'
+
+toText({ freq: 'YEARLY' }, { locale: de })
+// 'jedes Jahr'
+
+// BYDAY: weekdays on a weekly rule
+toText(
+  {
+    freq: 'WEEKLY',
+    byDay: [
+      { weekday: 'MO', ordinal: undefined },
+      { weekday: 'WE', ordinal: undefined },
+      { weekday: 'FR', ordinal: undefined },
+    ],
+  },
+  { locale: de }
+)
+// 'jede Woche am Montag, Mittwoch und Freitag'
+// (German uses 'und' without an Oxford comma)
+
+// Ordinal BYDAY in MONTHLY context
+toText({ freq: 'MONTHLY', byDay: [{ weekday: 'TU', ordinal: 2 }] }, { locale: de })
+// 'jeden Monat am 2. Dienstag'
+
+toText({ freq: 'MONTHLY', byDay: [{ weekday: 'FR', ordinal: -1 }] }, { locale: de })
+// 'jeden Monat am letzten Freitag'
+
+// COUNT terminator
+toText({ freq: 'DAILY', count: 5 }, { locale: de })
+// 'jeden Tag, 5-mal'
+
+// BYMONTH (single)
+toText({ freq: 'YEARLY', byMonth: [3] }, { locale: de })
+// 'jedes Jahr im März'
+
+// BYMONTH (multiple)
+toText({ freq: 'YEARLY', byMonth: [6, 12] }, { locale: de })
+// 'jedes Jahr in Juni und Dezember'
+
+// Complex rule fallback
+toText({ freq: 'YEARLY', byWeekNo: [10] }, { locale: de })
+// '(komplexe Wiederholungsregel)'
 ```
 
-The interface defines the strings and formatting functions needed to render each RRULE component in
-a given language. Import the English locale as a reference implementation.
-
-## Custom locale example
+## The LocalePack contract
 
 ```ts
-import type { Locale } from 'rrule-ts/locales/types'
+import type { LocalePack, LocaleTokens } from 'rrule-ts/locales/en'
+```
 
-const fr: Locale = {
-  // implement all required fields
-  // see rrule-ts/locales/en for the full contract
+A `LocalePack` is a plain object with static data tables and formatter functions. The interface:
+
+```ts
+interface LocalePack {
+  /** Locale identifier, e.g. 'en' or 'de'. */
+  id: string
+
+  /**
+   * Weekday display names in RFC 5545 order.
+   * Index 0 = Monday (MO) through index 6 = Sunday (SU).
+   */
+  weekdays: [string, string, string, string, string, string, string]
+
+  /**
+   * Month display names.
+   * Index 0 = January through index 11 = December.
+   */
+  months: [
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+  ]
+
+  /** Fixed-string connective tokens. */
+  tokens: LocaleTokens
+
+  /** Render an interval phrase. n=1 -> singular; n>1 -> plural with count. */
+  formatInterval(n: number, freq: Frequency): string
+
+  /** Render an ordinal for BYDAY or BYSETPOS. */
+  formatOrdinal(n: number): string
+
+  /** Render a COUNT value. */
+  formatCount(n: number): string
+
+  /** Join a list with locale-appropriate conjunction. */
+  formatList(items: string[]): string
+
+  /** Render an UNTIL date as a human-readable string. */
+  formatDate(date: RRuleUntil): string
+
+  /**
+   * Render a "Nth-to-last day" phrase for negative BYMONTHDAY below -1.
+   * n is the absolute value (n >= 2).
+   */
+  formatNthToLastDay(n: number): string
+
+  /**
+   * Render the adjectival "nth-to-last" ordinal for negative BYDAY ordinals below -1.
+   * n is the absolute value (n >= 2). Combined with a weekday name by toText.
+   */
+  formatNthToLastOrdinal(n: number): string
+
+  /**
+   * Returned when a rule cannot be expressed naturally.
+   * EN: '(complex recurrence rule)'. DE: '(komplexe Wiederholungsregel)'.
+   */
+  complexRuleFallback: string
 }
-
-import { toText } from 'rrule-ts/text'
-toText(options, fr)
 ```
 
-## Locale coverage
+### LocaleTokens
 
-English and German ship in the v0.x series. The `Locale` interface is stable for third-party packs.
-Additional built-in locales may be added in future releases. Contributions are welcome via the
-[GitHub repository](https://github.com/codewithagents/rrule).
+```ts
+interface LocaleTokens {
+  /** Precedes BYDAY or BYMONTHDAY clause. EN: 'on', DE: 'am' */
+  on: string
+  /** Precedes BYHOUR time clause. EN: 'at', DE: 'um' */
+  at: string
+  /** Precedes a multi-month BYMONTH clause. EN: 'in', DE: 'in' */
+  in: string
+  /** Precedes a single-month BYMONTH clause. EN: 'in', DE: 'im' */
+  inSingular: string
+  /** Precedes the UNTIL date. EN: 'until', DE: 'bis' */
+  until: string
+  /** Between 'on' and an ordinal. EN: 'the', DE: '' (empty) */
+  the: string
+  /** The -1 ordinal in adjectival BYDAY position. EN: 'last', DE: 'letzten' */
+  last: string
+  /** Rendered for BYMONTHDAY=-1. EN: 'last day', DE: 'letzten Tag' */
+  lastDay: string
+  /** Used for BYSETPOS=-1 + Mon-Fri pattern. EN: 'weekday', DE: 'Werktag' */
+  weekday: string
+}
+```
+
+## Tree-shakeability
+
+Locale packs are imported per-locale. Each subpath export (`rrule-ts/locales/en`,
+`rrule-ts/locales/de`) is a standalone module with no re-export of other locales. A bundler
+(esbuild, Rollup, webpack) that tree-shakes will include only the locales you import.
+
+```ts
+// Only de is included in the bundle; en is not imported, so it is not included.
+import { de } from 'rrule-ts/locales/de'
+import { toText } from 'rrule-ts/text'
+
+toText({ freq: 'DAILY' }, { locale: de })
+```
+
+## Adding a new locale
+
+A locale is pure data plus formatter functions. No library internals need to change. To add a
+French locale, for example:
+
+```ts
+import type { LocalePack } from 'rrule-ts/locales/en'
+import type { Frequency } from 'rrule-ts'
+
+const FR_MONTHS: LocalePack['months'] = [
+  'janvier',
+  'février',
+  'mars',
+  'avril',
+  'mai',
+  'juin',
+  'juillet',
+  'août',
+  'septembre',
+  'octobre',
+  'novembre',
+  'décembre',
+]
+
+export const fr: LocalePack = {
+  id: 'fr',
+  weekdays: ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'],
+  months: FR_MONTHS,
+  tokens: {
+    on: 'le',
+    at: 'à',
+    in: 'en',
+    inSingular: 'en',
+    until: "jusqu'au",
+    the: '',
+    last: 'dernier',
+    lastDay: 'dernier jour',
+    weekday: 'jour ouvrable',
+  },
+  formatInterval(n, freq) {
+    const singular: Record<Frequency, string> = {
+      SECONDLY: 'chaque seconde',
+      MINUTELY: 'chaque minute',
+      HOURLY: 'chaque heure',
+      DAILY: 'chaque jour',
+      WEEKLY: 'chaque semaine',
+      MONTHLY: 'chaque mois',
+      YEARLY: 'chaque année',
+    }
+    const plural: Record<Frequency, string> = {
+      SECONDLY: 'secondes',
+      MINUTELY: 'minutes',
+      HOURLY: 'heures',
+      DAILY: 'jours',
+      WEEKLY: 'semaines',
+      MONTHLY: 'mois',
+      YEARLY: 'ans',
+    }
+    if (n === 1) return singular[freq]
+    return `tous les ${n} ${plural[freq]}`
+  },
+  formatOrdinal(n) {
+    if (n === 1) return '1er'
+    return `${Math.abs(n)}e`
+  },
+  formatCount(n) {
+    return `${n} fois`
+  },
+  formatList(items) {
+    if (items.length === 0) return ''
+    if (items.length === 1) return items[0]
+    if (items.length === 2) return `${items[0]} et ${items[1]}`
+    return `${items.slice(0, -1).join(', ')} et ${items[items.length - 1]}`
+  },
+  formatDate(date) {
+    // Minimal implementation; expand as needed
+    const d = date as Temporal.PlainDate
+    return `${d.day} ${FR_MONTHS[d.month - 1]} ${d.year}`
+  },
+  formatNthToLastDay(n) {
+    return `${n}e jour avant la fin`
+  },
+  formatNthToLastOrdinal(n) {
+    return `${n}e avant dernier`
+  },
+  complexRuleFallback: '(règle de récurrence complexe)',
+}
+```
+
+Then pass it to `toText()`:
+
+```ts
+import { toText } from 'rrule-ts/text'
+import { fr } from './locales/fr'
+
+toText({ freq: 'DAILY' }, { locale: fr })
+// 'chaque jour'
+
+toText({ freq: 'WEEKLY', interval: 2 }, { locale: fr })
+// 'tous les 2 semaines'
+```
+
+<Aside type="note" title="fromText is English-only">
+  `fromText()` has no locale parameter. It parses only canonical English output produced by
+  `toText()` with the `en` locale. Parsing German or French text returns `Err`.
+</Aside>
