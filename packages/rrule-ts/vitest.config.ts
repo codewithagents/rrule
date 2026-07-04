@@ -14,6 +14,12 @@ export default defineConfig({
         'src/index.ts',
         'src/expand.ts',
         'src/rruleset.ts',
+        // Text rendering and locale packs (Phase 1: EN toText/i18n, Phase 2: DE).
+        'src/text/index.ts',
+        'src/text/toText.ts',
+        'src/locales/types.ts',
+        'src/locales/en.ts',
+        'src/locales/de.ts',
       ],
       exclude: ['src/**/*.test.ts'],
       thresholds: {

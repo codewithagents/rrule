@@ -1,42 +1,130 @@
 // German locale pack for rrule-ts/text (import 'rrule-ts/locales/de').
 //
-// Stub for the expansion phase.
-// TODO(expansion-phase): provide full German locale strings for toText.
+// Implements the full LocalePack interface with German grammatical gender,
+// period-suffix ordinals, and ' und ' list conjunction (no Oxford comma).
 
-import type { LocalePack } from './en.js'
+import type { Frequency } from '../types.js'
+import type { LocalePack } from './types.js'
 
-export type { LocalePack }
+export type { LocalePack, LocaleTokens } from './types.js'
+
+// ---------------------------------------------------------------------------
+// Internal tables
+// ---------------------------------------------------------------------------
+
+const DE_MONTHS: LocalePack['months'] = [
+  'Januar',
+  'Februar',
+  'März',
+  'April',
+  'Mai',
+  'Juni',
+  'Juli',
+  'August',
+  'September',
+  'Oktober',
+  'November',
+  'Dezember',
+]
+
+// Grammatical gender rules for interval=1 (singular, gender-inflected form).
+// masculine: jeden Tag, jeden Monat
+// feminine: jede Woche, jede Stunde, jede Minute, jede Sekunde
+// neuter: jedes Jahr
+const FREQ_SINGULAR: Record<Frequency, string> = {
+  SECONDLY: 'jede Sekunde',
+  MINUTELY: 'jede Minute',
+  HOURLY: 'jede Stunde',
+  DAILY: 'jeden Tag',
+  WEEKLY: 'jede Woche',
+  MONTHLY: 'jeden Monat',
+  YEARLY: 'jedes Jahr',
+}
+
+// Plural forms for interval>1 (alle N [unit]).
+const FREQ_PLURAL: Record<Frequency, string> = {
+  SECONDLY: 'Sekunden',
+  MINUTELY: 'Minuten',
+  HOURLY: 'Stunden',
+  DAILY: 'Tage',
+  WEEKLY: 'Wochen',
+  MONTHLY: 'Monate',
+  YEARLY: 'Jahre',
+}
+
+// ---------------------------------------------------------------------------
+// German locale pack
+// ---------------------------------------------------------------------------
 
 /**
  * German locale pack.
  *
- * @stub Partial data. The full locale will be populated in the expansion phase.
- * TODO(expansion-phase): fill all strings and wire into toText.
+ * formatInterval: n=1 uses gender-inflected singular ('jeden Tag');
+ *   n>1 uses 'alle N [Einheit]'.
+ * formatOrdinal: positive n -> 'n.' (appends period); -1 -> 'letzten'.
+ * formatCount: 'N-mal'.
+ * formatList: ' und ' conjunction, no Oxford comma ('A, B und C').
+ * formatDate: PlainDate -> 'D. Month YYYY' (German date order).
  */
 export const de: LocalePack = {
   id: 'de',
   weekdays: ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'],
-  months: [
-    'Januar',
-    'Februar',
-    'März',
-    'April',
-    'Mai',
-    'Juni',
-    'Juli',
-    'August',
-    'September',
-    'Oktober',
-    'November',
-    'Dezember',
-  ],
-  frequencies: {
-    SECONDLY: 'jede Sekunde',
-    MINUTELY: 'jede Minute',
-    HOURLY: 'jede Stunde',
-    DAILY: 'täglich',
-    WEEKLY: 'wöchentlich',
-    MONTHLY: 'monatlich',
-    YEARLY: 'jährlich',
+  months: DE_MONTHS,
+  tokens: {
+    on: 'am',
+    at: 'um',
+    in: 'in',
+    inSingular: 'im',
+    until: 'bis',
+    // Empty: German uses 'am' to cover 'on the', so no separate 'the' token.
+    the: '',
+    last: 'letzten',
+    lastDay: 'letzten Tag',
+    weekday: 'Werktag',
+  },
+
+  formatInterval(n: number, freq: Frequency): string {
+    if (n === 1) return FREQ_SINGULAR[freq]
+    return `alle ${n} ${FREQ_PLURAL[freq]}`
+  },
+
+  formatOrdinal(n: number): string {
+    // German ordinals use a period suffix: 1. 2. 3. etc.
+    // For -1 (adjectival 'last' in BYDAY context): 'letzten'.
+    if (n === -1) return 'letzten'
+    // For -2 (second-to-last): 'vorletzten'.
+    if (n === -2) return 'vorletzten'
+    const abs = Math.abs(n)
+    return `${abs}.`
+  },
+
+  formatCount(n: number): string {
+    return `${n}-mal`
+  },
+
+  formatList(items: string[]): string {
+    if (items.length === 0) return ''
+    if (items.length === 1) return items[0]
+    if (items.length === 2) return `${items[0]} und ${items[1]}`
+    // No Oxford comma in German: "A, B und C"
+    return `${items.slice(0, -1).join(', ')} und ${items[items.length - 1]}`
+  },
+
+  formatDate(date): string {
+    // German date order: D. Month YYYY
+    // Duck-type to identify the Temporal variant.
+    if ('epochMilliseconds' in date && !('year' in date)) {
+      const inst = date as Temporal.Instant
+      const dt = inst.toZonedDateTimeISO('UTC')
+      const min = String(dt.minute).padStart(2, '0')
+      return `${dt.day}. ${DE_MONTHS[dt.month - 1]} ${dt.year} um ${dt.hour}:${min}`
+    }
+    if ('hour' in date) {
+      const dt = date as Temporal.PlainDateTime
+      const min = String(dt.minute).padStart(2, '0')
+      return `${dt.day}. ${DE_MONTHS[dt.month - 1]} ${dt.year} um ${dt.hour}:${min}`
+    }
+    const d = date as Temporal.PlainDate
+    return `${d.day}. ${DE_MONTHS[d.month - 1]} ${d.year}`
   },
 }
