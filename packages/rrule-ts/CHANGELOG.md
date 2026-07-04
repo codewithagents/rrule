@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.1](https://github.com/codewithagents/rrule/compare/rrule-ts-v0.2.0...rrule-ts-v0.2.1) (2026-07-04)
+
+
+### Bug Fixes
+
+* **rrule-ts:** sub-daily BY limits and sparse-COUNT horizon (RFC 5545 conformance) ([a2b0828](https://github.com/codewithagents/rrule/commit/a2b08288b4b118d0cec314a72a0a5d3310a8ae71))
+
 ## [0.2.0](https://github.com/codewithagents/rrule/compare/rrule-ts-v0.1.0...rrule-ts-v0.2.0) (2026-07-04)
 
 
