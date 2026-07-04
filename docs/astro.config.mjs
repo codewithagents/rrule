@@ -65,7 +65,7 @@ export default defineConfig({
         },
       ],
       logo: {
-        src: './src/assets/logo-cairn.svg',
+        src: './src/assets/logo-rrule-ts.svg',
         alt: 'rrule-ts',
       },
       favicon: '/favicon.svg',

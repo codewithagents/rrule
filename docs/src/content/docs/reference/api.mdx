@@ -3,71 +3,637 @@ title: API Surface
 description: Complete hand-written reference for all public exports, grouped by subpath.
 ---
 
+import { Aside, Tabs, TabItem } from '@astrojs/starlight/components'
+
 All public exports are grouped by subpath. Import from the subpath that contains the symbol you
 need. Each subpath is independently tree-shakeable.
 
+---
+
 ## Core: `import ... from 'rrule-ts'`
 
-### Functions
+### `parse`
 
-| Symbol        | Signature                                                              | Returns                 | Guide                             |
-| ------------- | ---------------------------------------------------------------------- | ----------------------- | --------------------------------- |
-| `parse`       | `(input: string) => Result<RRuleOptions, string>`                      | `Result`                | [Parsing](/guides/parsing)        |
-| `validate`    | `(options: RRuleOptions) => Result<RRuleOptions, ValidationError[]>`   | `Result`                | [Validation](/guides/validation)  |
-| `stringify`   | `(options: RRuleOptions) => string`                                    | `string`                | [Stringifying](/guides/stringify) |
-| `expand`      | `(options: RRuleOptions, opts?: ExpandOptions) => Temporal date array` | array                   | [Expansion](/guides/expansion)    |
-| `iterate`     | `(options: RRuleOptions, opts?: ExpandOptions) => AsyncGenerator`      | async generator         | [Expansion](/guides/expansion)    |
-| `getTemporal` | `() => typeof Temporal`                                                | Temporal implementation |                                   |
-| `setTemporal` | `(impl: typeof Temporal) => void`                                      | `void`                  | [Introduction](/getting-started)  |
-| `ok`          | `<T>(value: T) => Ok<T>`                                               | `Ok<T>`                 |                                   |
-| `err`         | `<E>(error: E) => Err<E>`                                              | `Err<E>`                |                                   |
+```ts
+function parse(input: string): Result<RRuleOptions, string>
+```
 
-### Classes
+Converts an RFC 5545 RRULE string into a typed `RRuleOptions` object.
 
-| Symbol     | Description                              | Guide                        |
-| ---------- | ---------------------------------------- | ---------------------------- |
-| `RRuleSet` | Combine RRULE, RDATE, EXRULE, and EXDATE | [RRuleSet](/guides/rruleset) |
+**Parameters**
 
-### Types
+| Name    | Type     | Description                                                                              |
+| ------- | -------- | ---------------------------------------------------------------------------------------- |
+| `input` | `string` | A bare RRULE value, an `RRULE:`-prefixed line, or a multiline block including `DTSTART`. |
 
-| Symbol            | Description                                                                            |
-| ----------------- | -------------------------------------------------------------------------------------- |
-| `Result<T, E>`    | `Ok<T> \| Err<E>`                                                                      |
-| `Ok<T>`           | `{ ok: true; value: T }`                                                               |
-| `Err<E>`          | `{ ok: false; error: E }`                                                              |
-| `RRuleOptions`    | Full parsed RRULE options object                                                       |
-| `RRuleDtstart`    | Union of all valid dtstart Temporal types                                              |
-| `RRuleUntil`      | Union of all valid until Temporal types                                                |
-| `ExpandOptions`   | `{ limit?: number; maxDate?: ... }`                                                    |
-| `ValidationError` | `{ field: string; ruleId: string; message: string }`                                   |
-| `Frequency`       | `'SECONDLY' \| 'MINUTELY' \| 'HOURLY' \| 'DAILY' \| 'WEEKLY' \| 'MONTHLY' \| 'YEARLY'` |
-| `Weekday`         | `'MO' \| 'TU' \| 'WE' \| 'TH' \| 'FR' \| 'SA' \| 'SU'`                                 |
-| `WeekdayNum`      | `{ weekday: Weekday; n?: number }`                                                     |
+**Returns** `Result<RRuleOptions, string>`. On success `result.ok` is `true` and `result.value` holds the options. On failure `result.ok` is `false` and `result.error` is a human-readable message. Never throws.
+
+**Accepted input forms**
+
+```
+FREQ=WEEKLY;BYDAY=MO,WE,FR
+RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR
+DTSTART;TZID=America/New_York:20240101T090000
+RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR;COUNT=10
+```
+
+**Example**
+
+```ts
+import { parse } from 'rrule-ts'
+
+const result = parse('RRULE:FREQ=DAILY;COUNT=5')
+if (result.ok) {
+  console.log(result.value.freq) // 'DAILY'
+  console.log(result.value.count) // 5
+} else {
+  console.error(result.error)
+}
+```
+
+---
+
+### `validate`
+
+```ts
+function validate(options: RRuleOptions): Result<RRuleOptions, ValidationError[]>
+```
+
+Checks all cross-field RFC 5545 constraints on a parsed `RRuleOptions` object. Returns **all** errors in a single pass so callers see the complete picture, not just the first violation.
+
+**Parameters**
+
+| Name      | Type           | Description                         |
+| --------- | -------------- | ----------------------------------- |
+| `options` | `RRuleOptions` | A previously parsed options object. |
+
+**Returns** `Result<RRuleOptions, ValidationError[]>`. On success returns the same options object (pass-through). On failure returns an array of `ValidationError` objects.
+
+**Rules checked**
+
+- `COUNT` and `UNTIL` are mutually exclusive
+- `INTERVAL` >= 1
+- `COUNT` >= 1
+- `UNTIL` value type must match `DTSTART` value type (RFC 5545 §3.3.10)
+- `BYDAY` ordinals only allowed for `MONTHLY` or `YEARLY` frequency
+- `BYDAY` ordinals must not be combined with `BYWEEKNO`
+- `BYWEEKNO` only valid with `FREQ=YEARLY` (RFC 5545 §3.3.10 Table 1)
+- `BYYEARDAY` not valid with `DAILY`, `WEEKLY`, or `MONTHLY` (RFC 5545 §3.3.10 Table 1)
+- `BYMONTHDAY` not valid with `FREQ=WEEKLY` (RFC 5545 §3.3.10 Table 1)
+- `BYSETPOS` requires at least one other `BYxxx` rule part
+- `BY*` value ranges: `BYMONTH` 1-12, `BYMONTHDAY` ±1-31, `BYHOUR` 0-23, etc.
+
+**Example**
+
+```ts
+import { parse, validate } from 'rrule-ts'
+
+const parsed = parse('RRULE:FREQ=DAILY;COUNT=3;UNTIL=20250101T000000Z')
+if (!parsed.ok) throw new Error(parsed.error)
+
+const result = validate(parsed.value)
+if (!result.ok) {
+  for (const err of result.error) {
+    console.error(`${err.field} [${err.ruleId}]: ${err.message}`)
+    // COUNT [COUNT_XNOR_UNTIL]: COUNT and UNTIL are mutually exclusive; provide at most one.
+  }
+}
+```
+
+---
+
+### `stringify`
+
+```ts
+function stringify(options: RRuleOptions): string
+```
+
+Serializes `RRuleOptions` back to a canonical RRULE string.
+
+When `dtstart` is present the output includes a `DTSTART` content line (with `TZID=` when `tzid` is set) followed by the `RRULE:` line. This guarantees a round-trip: `parse(stringify(x))` deep-equals `x` for all valid `x`.
+
+**Parameters**
+
+| Name      | Type           | Description                   |
+| --------- | -------------- | ----------------------------- |
+| `options` | `RRuleOptions` | A valid `RRuleOptions` value. |
+
+**Returns** `string`. The canonical RRULE string. Never throws.
+
+**Property order in the RRULE value:**
+`FREQ`, `UNTIL`, `COUNT`, `INTERVAL`, `WKST`, `BYSECOND`, `BYMINUTE`, `BYHOUR`, `BYDAY`, `BYMONTHDAY`, `BYYEARDAY`, `BYWEEKNO`, `BYMONTH`, `BYSETPOS`.
+
+**Example**
+
+```ts
+import { stringify } from 'rrule-ts'
+
+const output = stringify({
+  freq: 'WEEKLY',
+  byDay: [
+    { weekday: 'MO', ordinal: undefined },
+    { weekday: 'FR', ordinal: undefined },
+  ],
+  count: 10,
+})
+// 'RRULE:FREQ=WEEKLY;COUNT=10;BYDAY=MO,FR'
+```
+
+---
+
+### `expand`
+
+```ts
+function expand(options: RRuleOptions, limitOrOpts?: number | ExpandOptions): RRuleDtstart[]
+```
+
+Materializes RRULE occurrences into an array.
+
+**Parameters**
+
+| Name          | Type                      | Description                                                                         |
+| ------------- | ------------------------- | ----------------------------------------------------------------------------------- |
+| `options`     | `RRuleOptions`            | Rule options. Must include `dtstart`.                                               |
+| `limitOrOpts` | `number \| ExpandOptions` | Either a plain number (maximum occurrences) or an `ExpandOptions` object. Optional. |
+
+**Returns** `RRuleDtstart[]`. An array of Temporal values matching the `dtstart` type (`Temporal.PlainDate`, `Temporal.PlainDateTime`, `Temporal.Instant`, or `Temporal.ZonedDateTime`).
+
+The `limit` argument (or `ExpandOptions.limit`) is a hard cap applied **after** `COUNT`/`UNTIL` from the rule itself. Bounded rules (those with `COUNT` or `UNTIL`) always produce their full set up to the rule limit before the caller-supplied cap is applied.
+
+**Example**
+
+```ts
+import { parse, expand } from 'rrule-ts'
+import { Temporal } from 'temporal-polyfill'
+import { setTemporal } from 'rrule-ts'
+setTemporal(Temporal)
+
+const result = parse('DTSTART:20240101T090000Z\nRRULE:FREQ=DAILY;COUNT=5')
+if (!result.ok) throw new Error(result.error)
+
+const dates = expand(result.value)
+// [Temporal.Instant(2024-01-01T09:00:00Z), ..., Temporal.Instant(2024-01-05T09:00:00Z)]
+```
+
+With `ExpandOptions`:
+
+```ts
+const dates = expand(result.value, { limit: 3, after: someInstant, inclusive: false })
+```
+
+---
+
+### `iterate`
+
+```ts
+function* iterate(options: RRuleOptions): Generator<RRuleDtstart>
+```
+
+Lazily yields RRULE occurrences one at a time. Use when you need a streaming or early-exit pattern. `options.dtstart` is required.
+
+**Parameters**
+
+| Name      | Type           | Description                           |
+| --------- | -------------- | ------------------------------------- |
+| `options` | `RRuleOptions` | Rule options. Must include `dtstart`. |
+
+**Returns** A synchronous `Generator<RRuleDtstart>`. Each yielded value is a Temporal object matching the `dtstart` type. Throws a descriptive error if `dtstart` is missing.
+
+**Example**
+
+```ts
+import { parse, iterate } from 'rrule-ts'
+
+const result = parse('DTSTART:20240101T090000Z\nRRULE:FREQ=WEEKLY;BYDAY=MO')
+if (!result.ok) throw new Error(result.error)
+
+let n = 0
+for (const occ of iterate(result.value)) {
+  console.log(occ.toString())
+  if (++n >= 3) break
+}
+```
+
+---
+
+### `getTemporal`
+
+```ts
+function getTemporal(): typeof Temporal
+```
+
+Returns the active Temporal namespace. Prefers `globalThis.Temporal` (present on Node.js >= 26 and modern browsers); falls back to the implementation injected via `setTemporal()`. Throws a descriptive error if neither is available.
+
+**Returns** `typeof Temporal`.
+
+---
+
+### `setTemporal`
+
+```ts
+function setTemporal(impl: typeof Temporal): void
+```
+
+Injects a Temporal polyfill for environments that do not expose `globalThis.Temporal` (Node.js < 26). Must be called once, before any date-aware operation, at application startup.
+
+**Parameters**
+
+| Name   | Type              | Description                                               |
+| ------ | ----------------- | --------------------------------------------------------- |
+| `impl` | `typeof Temporal` | A Temporal implementation, e.g. from `temporal-polyfill`. |
+
+**Example**
+
+```ts
+import { setTemporal } from 'rrule-ts'
+import { Temporal } from 'temporal-polyfill'
+
+setTemporal(Temporal) // call once, before parse/expand/iterate
+```
+
+---
+
+### `ok`
+
+```ts
+function ok<T>(value: T): Ok<T>
+```
+
+Wraps a success value in a `Result`. Useful when building functions that return `Result` without an intermediate variable.
+
+**Returns** `Ok<T>`: `{ ok: true; value: T }`.
+
+---
+
+### `err`
+
+```ts
+function err<E>(error: E): Err<E>
+```
+
+Wraps an error value in a `Result`.
+
+**Returns** `Err<E>`: `{ ok: false; error: E }`.
+
+---
+
+### `RRuleSet`
+
+```ts
+class RRuleSet
+```
+
+Combines multiple RRULEs, EXRULEs, RDATEs, and EXDATEs into one chronologically sorted, deduplicated occurrence stream.
+
+**Methods**
+
+| Method                             | Returns                  | Description                                          |
+| ---------------------------------- | ------------------------ | ---------------------------------------------------- |
+| `addRRule(options: RRuleOptions)`  | `this`                   | Add a recurrence rule.                               |
+| `addExRule(options: RRuleOptions)` | `this`                   | Add an exclusion rule (its occurrences are removed). |
+| `addRDate(date: RRuleDtstart)`     | `this`                   | Add an explicit inclusion date.                      |
+| `addExDate(date: RRuleDtstart)`    | `this`                   | Add an explicit exclusion date.                      |
+| `expand(limit?: number)`           | `RRuleDtstart[]`         | Materialize up to `limit` occurrences into an array. |
+| `[Symbol.iterator]()`              | `Iterator<RRuleDtstart>` | Iterate occurrences lazily.                          |
+
+**Example**
+
+```ts
+import { parse, RRuleSet } from 'rrule-ts'
+
+const r1 = parse('DTSTART:20240101T090000Z\nRRULE:FREQ=WEEKLY;BYDAY=MO').value!
+const r2 = parse('DTSTART:20240101T090000Z\nRRULE:FREQ=MONTHLY;BYDAY=1MO').value!
+
+const set = new RRuleSet()
+set.addRRule(r1).addRRule(r2)
+// set.addExDate(someInstant) -- to exclude specific dates
+
+const occurrences = set.expand(10)
+```
+
+---
+
+### Types (core)
+
+#### `Result<T, E>`
+
+```ts
+type Result<T, E> = Ok<T> | Err<E>
+
+interface Ok<T> {
+  readonly ok: true
+  readonly value: T
+}
+
+interface Err<E> {
+  readonly ok: false
+  readonly error: E
+}
+```
+
+The discriminated union returned by `parse`, `validate`, and `fromText`. Always check `result.ok` before accessing `result.value`.
+
+#### `RRuleOptions`
+
+```ts
+interface RRuleOptions {
+  freq: Frequency
+  interval?: number
+  count?: number
+  until?: RRuleUntil
+  wkst?: Weekday
+  byMonth?: number[]
+  byMonthDay?: number[]
+  byDay?: WeekdayNum[]
+  byYearDay?: number[]
+  byWeekNo?: number[]
+  byHour?: number[]
+  byMinute?: number[]
+  bySecond?: number[]
+  bySetPos?: number[]
+  dtstart?: RRuleDtstart
+  tzid?: string
+}
+```
+
+#### `Frequency`
+
+```ts
+type Frequency = 'SECONDLY' | 'MINUTELY' | 'HOURLY' | 'DAILY' | 'WEEKLY' | 'MONTHLY' | 'YEARLY'
+```
+
+#### `Weekday`
+
+```ts
+type Weekday = 'MO' | 'TU' | 'WE' | 'TH' | 'FR' | 'SA' | 'SU'
+```
+
+#### `WeekdayNum`
+
+```ts
+interface WeekdayNum {
+  ordinal: number | undefined // positive/negative ordinal; undefined means "every occurrence"
+  weekday: Weekday
+}
+```
+
+`ordinal: undefined` selects every occurrence of that weekday in the period (e.g. `BYDAY=MO` in a WEEKLY rule selects every Monday). A numeric `ordinal` selects the nth (positive) or nth-from-last (negative) occurrence within a MONTHLY or YEARLY period: `2MO` parses to `{ ordinal: 2, weekday: 'MO' }`, `-1FR` parses to `{ ordinal: -1, weekday: 'FR' }`.
+
+#### `RRuleDtstart`
+
+```ts
+type RRuleDtstart =
+  Temporal.PlainDate | Temporal.PlainDateTime | Temporal.Instant | Temporal.ZonedDateTime
+```
+
+The four Temporal representations that an iCalendar `DTSTART` can express. The concrete type depends on the input form: date-only, floating datetime, UTC datetime, or TZID-anchored datetime.
+
+#### `RRuleUntil`
+
+```ts
+type RRuleUntil = Temporal.PlainDate | Temporal.PlainDateTime | Temporal.Instant
+```
+
+RFC 5545 mandates that `UNTIL` uses the same value type as `DTSTART` (except `ZonedDateTime` which maps to `Instant` in `UNTIL`).
+
+#### `ExpandOptions`
+
+```ts
+interface ExpandOptions {
+  limit?: number // Maximum number of occurrences to return.
+  after?: RRuleDtstart // Only return occurrences after this value.
+  before?: RRuleDtstart // Only return occurrences before (or at) this value.
+  inclusive?: boolean // Whether after/before bounds are inclusive (default: true).
+}
+```
+
+#### `ValidationError`
+
+```ts
+interface ValidationError {
+  field: string // The RRULE field that failed, e.g. 'COUNT', 'UNTIL', 'BYDAY'.
+  ruleId: string // Stable machine-readable identifier, e.g. 'COUNT_XNOR_UNTIL'.
+  message: string // Human-readable description of the failure.
+}
+```
+
+---
 
 ## Text: `import ... from 'rrule-ts/text'`
 
-| Symbol     | Signature                                                         | Returns  | Guide                                          |
-| ---------- | ----------------------------------------------------------------- | -------- | ---------------------------------------------- |
-| `toText`   | `(options: RRuleOptions, locale?: Locale) => string`              | `string` | [toText and fromText](/guides/totext-fromtext) |
-| `fromText` | `(text: string, locale?: Locale) => Result<RRuleOptions, string>` | `Result` | [toText and fromText](/guides/totext-fromtext) |
+### `toText`
+
+```ts
+function toText(options: RRuleOptions, textOptions?: TextOptions): string
+```
+
+Converts `RRuleOptions` to a human-readable recurrence description.
+
+**Parameters**
+
+| Name          | Type           | Description                                                                                |
+| ------------- | -------------- | ------------------------------------------------------------------------------------------ |
+| `options`     | `RRuleOptions` | Parsed rule options.                                                                       |
+| `textOptions` | `TextOptions`  | Optional. Pass `{ locale: de }` (imported from `rrule-ts/locales/de`) to render in German. |
+
+**Returns** `string`. A natural-language description such as `'every week on Monday and Friday'`. Returns `locale.complexRuleFallback` (e.g. `'(complex recurrence rule)'`) for rules that cannot be expressed as a grammatical sentence: `BYWEEKNO`, `BYYEARDAY`, certain `BYSETPOS` combinations. Never throws.
+
+**Example**
+
+<Tabs>
+  <TabItem label="English (default)">
+    ```ts
+    import { toText } from 'rrule-ts/text'
+
+    toText({ freq: 'DAILY' })
+    // 'every day'
+
+    toText({ freq: 'WEEKLY', byDay: [{ weekday: 'MO', ordinal: undefined }] })
+    // 'every week on Monday'
+
+    toText({ freq: 'MONTHLY', byDay: [{ weekday: 'FR', ordinal: -1 }] })
+    // 'every month on the last Friday'
+
+    toText({ freq: 'WEEKLY', count: 5 })
+    // 'every week, 5 times'
+    ```
+
+  </TabItem>
+  <TabItem label="German">
+    ```ts
+    import { toText } from 'rrule-ts/text'
+    import { de } from 'rrule-ts/locales/de'
+
+    toText({ freq: 'DAILY' }, { locale: de })
+    // 'jeden Tag'
+
+    toText({ freq: 'WEEKLY', byDay: [{ weekday: 'MO', ordinal: undefined }] }, { locale: de })
+    // 'jede Woche am Montag'
+    ```
+
+  </TabItem>
+</Tabs>
+
+---
+
+### `fromText`
+
+```ts
+function fromText(text: string): Result<RRuleOptions, string>
+```
+
+Parses a human-readable English recurrence description back into `RRuleOptions`. Accepts only canonical output produced by `toText` with the English locale. Not a general natural-language parser.
+
+**Parameters**
+
+| Name   | Type     | Description                                                |
+| ------ | -------- | ---------------------------------------------------------- |
+| `text` | `string` | A string produced by `toText(opts)` (English locale only). |
+
+**Returns** `Result<RRuleOptions, string>`. Returns `Err` if the text cannot be parsed as English `toText` output.
+
+**Round-trip guarantee:** For all `RRuleOptions x` where `toText(x)` does not return the complex-rule fallback string, `fromText(toText(x)).value` deep-equals `x` (excluding `dtstart`, `tzid`, `wkst`, and `bySecond` which are absent from text output, and excluding `byMinute: [0]` which is indistinguishable from `byMinute: undefined` in the rendered text).
+
+**Out of scope:** `BYWEEKNO`, `BYYEARDAY`, `BYSECOND`, `WKST`, multi-value `BYSETPOS`, free-form prose not produced by `toText`. `fromText` is English-only: passing German or other locale text returns `Err`.
+
+**Example**
+
+```ts
+import { fromText } from 'rrule-ts/text'
+
+const result = fromText('every day')
+// { ok: true, value: { freq: 'DAILY' } }
+
+const result2 = fromText('every week on Monday')
+// { ok: true, value: { freq: 'WEEKLY', byDay: [{ weekday: 'MO', ordinal: undefined }] } }
+
+const result3 = fromText('every month on the last Friday, 6 times')
+// { ok: true, value: { freq: 'MONTHLY', byDay: [{ weekday: 'FR', ordinal: -1 }], count: 6 } }
+
+const bad = fromText('not a valid rrule description')
+// { ok: false, error: "fromText: expected 'every', got 'not'" }
+```
+
+---
+
+### `COMPLEX_RULE_FALLBACK`
+
+```ts
+const COMPLEX_RULE_FALLBACK: string
+// '(complex recurrence rule)'
+```
+
+The English fallback string returned by `toText` when a rule cannot be expressed naturally. Exported from `rrule-ts/text`. Callers who need to detect this case should compare against `COMPLEX_RULE_FALLBACK` (English) or `locale.complexRuleFallback` for non-English locales.
+
+---
+
+### `TextOptions`
+
+```ts
+interface TextOptions {
+  locale?: LocalePack
+}
+```
+
+The options object accepted by `toText`. When `locale` is omitted the built-in English locale is used.
+
+---
+
+### `LocalePack`
+
+```ts
+interface LocalePack {
+  id: string
+  weekdays: [string, string, string, string, string, string, string]
+  months: [
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+    string,
+  ]
+  tokens: LocaleTokens
+  formatInterval(n: number, freq: Frequency): string
+  formatOrdinal(n: number): string
+  formatCount(n: number): string
+  formatList(items: string[]): string
+  formatDate(date: RRuleUntil): string
+  formatNthToLastDay(n: number): string
+  formatNthToLastOrdinal(n: number): string
+  complexRuleFallback: string
+}
+```
+
+The interface a locale pack must implement. Import the type from `rrule-ts/text`:
+
+```ts
+import type { LocalePack } from 'rrule-ts/text'
+```
+
+Implement this interface to add a custom locale for `toText`.
+
+---
+
+### `LocaleTokens`
+
+```ts
+interface LocaleTokens {
+  on: string // precedes a BYDAY or BYMONTHDAY clause. EN: 'on', DE: 'am'
+  at: string // precedes a BYHOUR time clause. EN: 'at', DE: 'um'
+  in: string // precedes a multi-month BYMONTH clause. EN: 'in', DE: 'in'
+  inSingular: string // precedes a single-month BYMONTH clause. EN: 'in', DE: 'im'
+  until: string // precedes the UNTIL date. EN: 'until', DE: 'bis'
+  the: string // between 'on' and an ordinal. EN: 'the', DE: '' (empty)
+  last: string // adjectival -1 ordinal in BYDAY. EN: 'last', DE: 'letzten'
+  lastDay: string // rendered for BYMONTHDAY=-1. EN: 'last day', DE: 'letzten Tag'
+  weekday: string // for BYSETPOS=-1 + Mon-Fri pattern. EN: 'weekday', DE: 'Werktag'
+}
+```
+
+---
 
 ## Locales
 
-| Subpath               | Default export        | Guide                                |
-| --------------------- | --------------------- | ------------------------------------ |
-| `rrule-ts/locales/en` | English `Locale` pack | [i18n locales](/guides/i18n-locales) |
-| `rrule-ts/locales/de` | German `Locale` pack  | [i18n locales](/guides/i18n-locales) |
-
-### The Locale interface
+### `rrule-ts/locales/en`
 
 ```ts
-// Import the type from:
-import type { Locale } from 'rrule-ts/locales/types'
+import { en } from 'rrule-ts/locales/en'
+import type { LocalePack, LocaleTokens } from 'rrule-ts/locales/en'
 ```
 
-Implement this interface to create a custom locale pack for `toText()` and `fromText()`.
+The built-in English locale pack. Same implementation bundled inside `rrule-ts/text` as the default. Import explicitly when you need to pass it as a value (e.g. to compare `locale.complexRuleFallback`).
 
-## Tree-shaking note
+`en.formatInterval`: n=1 returns `'every day'`; n>1 returns `'every N days'`.
+`en.formatOrdinal`: 1 returns `'1st'`, 2 returns `'2nd'`, 3 returns `'3rd'`; -1 returns `'last'`.
+`en.formatCount`: 1 returns `'1 time'`; N returns `'N times'`.
+`en.formatList`: Oxford comma: `'A, B, and C'`.
 
-`rrule-ts` is published with `"sideEffects": false`. Bundlers can safely tree-shake unused exports
-across all subpaths. Only the code paths you import are included in your bundle.
+---
+
+### `rrule-ts/locales/de`
+
+```ts
+import { de } from 'rrule-ts/locales/de'
+import type { LocalePack, LocaleTokens } from 'rrule-ts/locales/de'
+```
+
+The built-in German locale pack. Fully tree-shakeable: importing only `rrule-ts/text` does NOT include the German locale.
+
+`de.formatInterval`: n=1 returns `'jeden Tag'` (with grammatical gender per frequency); n>1 returns `'alle N Tage'`.
+`de.formatOrdinal`: period-suffix style, e.g. `'1.'`, `'2.'`.
+`de.formatList`: conjunction `' und '` with no Oxford comma: `'A, B und C'`.
+
+---
+
+## Tree-shaking
+
+`rrule-ts` is published with `"sideEffects": false`. Bundlers can safely tree-shake unused exports across all subpaths. Only the code paths you import are included in the final bundle.
+
+Locale packs are a key example: importing `rrule-ts/text` does **not** pull in the German locale. The German locale is only included when you explicitly import `rrule-ts/locales/de`.
