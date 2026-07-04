@@ -98,6 +98,49 @@ function formatOccurrence(occ: unknown): string {
 }
 
 // ---------------------------------------------------------------------------
+// Oracle-divergent cases: rrule-ts is RFC-correct; python-dateutil is WRONG.
+//
+// These are NOT in the oracle-derived corpus because comparing against the
+// oracle would produce a false failure. Each case is hand-authored from the
+// RFC 5545 specification with an explanation of why dateutil diverges.
+//
+// Rule: these tests must always pass (green). If they start failing it means
+// the engine regressed to match the (wrong) dateutil behaviour.
+// ---------------------------------------------------------------------------
+
+describe('RFC-correct, oracle-divergent cases', () => {
+  it('BYWEEKNO=52 from 2000-01-01: seven days Dec 25-31 2000 only (dateutil also emits Jan 1-2)', () => {
+    // FREQ=YEARLY;BYWEEKNO=52, DTSTART=2000-01-01T09:00:00, COUNT=7.
+    //
+    // RFC 5545: ISO week 52 of calendar year 2000 starts on Mon 2000-12-25 and
+    // ends on Sun 2000-12-31. Those are the only seven occurrences in year 2000.
+    //
+    // python-dateutil BUG: dateutil also emits 2000-01-01 and 2000-01-02 because
+    // it treats those dates as being in "week 52" of the previous ISO year
+    // (ISO 1999 week 52 bleeds into 2000-01-01/02). The RFC is clear that
+    // FREQ=YEARLY with BYWEEKNO=52 must only emit dates whose ISO week 52
+    // belongs to the iteration year (2000). 2000-01-01 and 2000-01-02 are in
+    // ISO week 52 of year 1999, not year 2000, so they must NOT be emitted.
+    // This test is intentionally NOT generated from the oracle.
+
+    const dtLine = 'DTSTART:20000101T090000'
+    const parsed = parse(`${dtLine}\nRRULE:FREQ=YEARLY;BYWEEKNO=52`)
+    if (!parsed.ok) throw new Error(`parse failed: ${parsed.error}`)
+    const occurrences = expand(parsed.value, 7)
+    const isoStrings = occurrences.map(formatOccurrence)
+    expect(isoStrings).toEqual([
+      '2000-12-25T09:00:00',
+      '2000-12-26T09:00:00',
+      '2000-12-27T09:00:00',
+      '2000-12-28T09:00:00',
+      '2000-12-29T09:00:00',
+      '2000-12-30T09:00:00',
+      '2000-12-31T09:00:00',
+    ])
+  })
+})
+
+// ---------------------------------------------------------------------------
 // ACTIVE: corpus sanity checks — always run, prove the harness is not vacuous
 // ---------------------------------------------------------------------------
 

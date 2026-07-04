@@ -2,7 +2,7 @@
   "version": "1",
   "oracleVersion": "python-dateutil 2.9.0.post0",
   "generatedAt": "2026-06-28T00:00:00.000Z",
-  "totalCases": 169,
+  "totalCases": 172,
   "cases": [
     {
       "id": "rfc-daily-count-10",
@@ -2889,6 +2889,56 @@
         "2024-10-07T10:00:00+11:00",
         "2024-10-08T10:00:00+11:00",
         "2024-10-09T10:00:00+11:00"
+      ]
+    },
+    {
+      "id": "regression-hourly-bymonthday-15",
+      "label": "BUG #1 regression: HOURLY+BYMONTHDAY limits to the 15th of each month",
+      "rrule": "FREQ=HOURLY;BYHOUR=9;BYMONTHDAY=15;COUNT=6",
+      "dtstart": "2024-01-01T00:00:00",
+      "tzid": null,
+      "count": 6,
+      "expectedOccurrences": [
+        "2024-01-15T09:00:00",
+        "2024-02-15T09:00:00",
+        "2024-03-15T09:00:00",
+        "2024-04-15T09:00:00",
+        "2024-05-15T09:00:00",
+        "2024-06-15T09:00:00"
+      ]
+    },
+    {
+      "id": "regression-hourly-byday-mo",
+      "label": "BUG #1 regression: HOURLY+BYDAY=MO limits to Mondays only",
+      "rrule": "FREQ=HOURLY;BYHOUR=9;BYDAY=MO;COUNT=4",
+      "dtstart": "2024-01-01T09:00:00",
+      "tzid": null,
+      "count": 4,
+      "expectedOccurrences": [
+        "2024-01-01T09:00:00",
+        "2024-01-08T09:00:00",
+        "2024-01-15T09:00:00",
+        "2024-01-22T09:00:00"
+      ]
+    },
+    {
+      "id": "regression-daily-feb29-sparse-count",
+      "label": "BUG #2 regression: DAILY sparse Feb-29 COUNT=10 spans 36 years without truncation",
+      "rrule": "FREQ=DAILY;BYMONTH=2;BYMONTHDAY=29;COUNT=10",
+      "dtstart": "2024-02-29T09:00:00",
+      "tzid": null,
+      "count": 10,
+      "expectedOccurrences": [
+        "2024-02-29T09:00:00",
+        "2028-02-29T09:00:00",
+        "2032-02-29T09:00:00",
+        "2036-02-29T09:00:00",
+        "2040-02-29T09:00:00",
+        "2044-02-29T09:00:00",
+        "2048-02-29T09:00:00",
+        "2052-02-29T09:00:00",
+        "2056-02-29T09:00:00",
+        "2060-02-29T09:00:00"
       ]
     }
   ]
