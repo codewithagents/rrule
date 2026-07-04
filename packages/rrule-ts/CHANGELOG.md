@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.3.0](https://github.com/codewithagents/rrule/compare/rrule-ts-v0.2.1...rrule-ts-v0.3.0) (2026-07-04)
+
+
+### Features
+
+* **rrule-ts:** add fromText English parser and finalize toText i18n ([971676f](https://github.com/codewithagents/rrule/commit/971676ff2b044651ec99af98b0633ffafbe06438))
+* **rrule-ts:** German locale for toText ([09a8534](https://github.com/codewithagents/rrule/commit/09a8534b05032766c314f5cb7db1cb371dead5dd))
+
+
+### Bug Fixes
+
+* **rrule-ts:** correct toText for negative BYDAY ordinals and route ambiguous rules to the complex fallback ([e40b305](https://github.com/codewithagents/rrule/commit/e40b305dee20a19ac61f47ddff130ccd2a83924d))
+
 ## [0.2.1](https://github.com/codewithagents/rrule/compare/rrule-ts-v0.2.0...rrule-ts-v0.2.1) (2026-07-04)
 
 
