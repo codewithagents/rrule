@@ -8,9 +8,12 @@ import { describe, it, expect } from 'vitest'
 import { toText, COMPLEX_RULE_FALLBACK } from './index.js'
 import { en } from '../locales/en.js'
 import { de } from '../locales/de.js'
+import { fr } from '../locales/fr.js'
 import { getTemporal } from '../temporal.js'
 // de.complexRuleFallback is DE-specific: used to assert DE fallback output.
 const DE_FALLBACK = de.complexRuleFallback
+// fr.complexRuleFallback is FR-specific: used to assert FR fallback output.
+const FR_FALLBACK = fr.complexRuleFallback
 
 // ---------------------------------------------------------------------------
 // EN golden strings
@@ -763,5 +766,354 @@ describe('toText DE: complex rule fallback (locale-specific)', () => {
 
   it('DE fallback is different from EN fallback', () => {
     expect(DE_FALLBACK).not.toBe(COMPLEX_RULE_FALLBACK)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// FR golden strings
+// ---------------------------------------------------------------------------
+
+describe('toText FR: frequency and interval', () => {
+  it('FREQ=DAILY -> tous les jours', () => {
+    expect(toText({ freq: 'DAILY' }, { locale: fr })).toBe('tous les jours')
+  })
+
+  it('FREQ=DAILY;INTERVAL=2 -> tous les 2 jours', () => {
+    expect(toText({ freq: 'DAILY', interval: 2 }, { locale: fr })).toBe('tous les 2 jours')
+  })
+
+  it('FREQ=WEEKLY -> toutes les semaines', () => {
+    expect(toText({ freq: 'WEEKLY' }, { locale: fr })).toBe('toutes les semaines')
+  })
+
+  it('FREQ=MONTHLY -> tous les mois', () => {
+    expect(toText({ freq: 'MONTHLY' }, { locale: fr })).toBe('tous les mois')
+  })
+
+  it('FREQ=YEARLY -> tous les ans', () => {
+    expect(toText({ freq: 'YEARLY' }, { locale: fr })).toBe('tous les ans')
+  })
+
+  it('FREQ=HOURLY -> toutes les heures', () => {
+    expect(toText({ freq: 'HOURLY' }, { locale: fr })).toBe('toutes les heures')
+  })
+
+  it('FREQ=HOURLY;INTERVAL=6 -> toutes les 6 heures', () => {
+    expect(toText({ freq: 'HOURLY', interval: 6 }, { locale: fr })).toBe('toutes les 6 heures')
+  })
+
+  it('FREQ=MINUTELY -> toutes les minutes', () => {
+    expect(toText({ freq: 'MINUTELY' }, { locale: fr })).toBe('toutes les minutes')
+  })
+
+  it('FREQ=SECONDLY -> toutes les secondes', () => {
+    expect(toText({ freq: 'SECONDLY' }, { locale: fr })).toBe('toutes les secondes')
+  })
+
+  it('FREQ=WEEKLY;INTERVAL=2 -> toutes les 2 semaines', () => {
+    expect(toText({ freq: 'WEEKLY', interval: 2 }, { locale: fr })).toBe('toutes les 2 semaines')
+  })
+})
+
+describe('toText FR: BYDAY plain weekdays (WEEKLY)', () => {
+  it('FREQ=WEEKLY;BYDAY=MO -> toutes les semaines le lundi', () => {
+    expect(
+      toText({ freq: 'WEEKLY', byDay: [{ weekday: 'MO', ordinal: undefined }] }, { locale: fr })
+    ).toBe('toutes les semaines le lundi')
+  })
+
+  it('FREQ=WEEKLY;BYDAY=MO,WE,FR -> toutes les semaines le lundi, mercredi et vendredi', () => {
+    expect(
+      toText(
+        {
+          freq: 'WEEKLY',
+          byDay: [
+            { weekday: 'MO', ordinal: undefined },
+            { weekday: 'WE', ordinal: undefined },
+            { weekday: 'FR', ordinal: undefined },
+          ],
+        },
+        { locale: fr }
+      )
+    ).toBe('toutes les semaines le lundi, mercredi et vendredi')
+  })
+
+  it('FREQ=WEEKLY;INTERVAL=2;BYDAY=MO -> toutes les 2 semaines le lundi', () => {
+    expect(
+      toText(
+        { freq: 'WEEKLY', interval: 2, byDay: [{ weekday: 'MO', ordinal: undefined }] },
+        { locale: fr }
+      )
+    ).toBe('toutes les 2 semaines le lundi')
+  })
+
+  it('FREQ=WEEKLY;BYDAY=MO,TU -> toutes les semaines le lundi et mardi', () => {
+    expect(
+      toText(
+        {
+          freq: 'WEEKLY',
+          byDay: [
+            { weekday: 'MO', ordinal: undefined },
+            { weekday: 'TU', ordinal: undefined },
+          ],
+        },
+        { locale: fr }
+      )
+    ).toBe('toutes les semaines le lundi et mardi')
+  })
+})
+
+describe('toText FR: BYDAY ordinal weekdays (MONTHLY)', () => {
+  it('FREQ=MONTHLY;BYDAY=1MO -> tous les mois le 1er lundi', () => {
+    expect(
+      toText({ freq: 'MONTHLY', byDay: [{ weekday: 'MO', ordinal: 1 }] }, { locale: fr })
+    ).toBe('tous les mois le 1er lundi')
+  })
+
+  it('FREQ=MONTHLY;BYDAY=-1FR -> tous les mois le dernier vendredi', () => {
+    expect(
+      toText({ freq: 'MONTHLY', byDay: [{ weekday: 'FR', ordinal: -1 }] }, { locale: fr })
+    ).toBe('tous les mois le dernier vendredi')
+  })
+
+  it('FREQ=MONTHLY;BYDAY=2TU -> tous les mois le 2e mardi', () => {
+    expect(
+      toText({ freq: 'MONTHLY', byDay: [{ weekday: 'TU', ordinal: 2 }] }, { locale: fr })
+    ).toBe('tous les mois le 2e mardi')
+  })
+
+  it('FREQ=MONTHLY;BYDAY=3WE -> tous les mois le 3e mercredi', () => {
+    expect(
+      toText({ freq: 'MONTHLY', byDay: [{ weekday: 'WE', ordinal: 3 }] }, { locale: fr })
+    ).toBe('tous les mois le 3e mercredi')
+  })
+})
+
+describe('toText FR: BYMONTHDAY', () => {
+  it('FREQ=MONTHLY;BYMONTHDAY=1 -> tous les mois le 1er', () => {
+    expect(toText({ freq: 'MONTHLY', byMonthDay: [1] }, { locale: fr })).toBe('tous les mois le 1er')
+  })
+
+  it('FREQ=MONTHLY;BYMONTHDAY=-1 -> tous les mois le dernier jour', () => {
+    expect(toText({ freq: 'MONTHLY', byMonthDay: [-1] }, { locale: fr })).toBe(
+      'tous les mois le dernier jour'
+    )
+  })
+
+  it('FREQ=MONTHLY;BYMONTHDAY=15 -> tous les mois le 15e', () => {
+    expect(toText({ freq: 'MONTHLY', byMonthDay: [15] }, { locale: fr })).toBe('tous les mois le 15e')
+  })
+
+  it('FREQ=MONTHLY;BYMONTHDAY=1,15 -> tous les mois le 1er et 15e', () => {
+    expect(toText({ freq: 'MONTHLY', byMonthDay: [1, 15] }, { locale: fr })).toBe(
+      'tous les mois le 1er et 15e'
+    )
+  })
+
+  it('FREQ=MONTHLY;BYMONTHDAY=-2 -> tous les mois le avant-dernier jour (FR)', () => {
+    expect(toText({ freq: 'MONTHLY', byMonthDay: [-2] }, { locale: fr })).toBe(
+      'tous les mois le avant-dernier jour'
+    )
+  })
+
+  it('FREQ=MONTHLY;BYMONTHDAY=-3 -> tous les mois le 3e-avant-dernier jour (FR)', () => {
+    expect(toText({ freq: 'MONTHLY', byMonthDay: [-3] }, { locale: fr })).toBe(
+      'tous les mois le 3e-avant-dernier jour'
+    )
+  })
+})
+
+describe('toText FR: BYMONTH', () => {
+  it('FREQ=YEARLY;BYMONTH=1;BYMONTHDAY=1 -> tous les ans en janvier le 1er', () => {
+    expect(toText({ freq: 'YEARLY', byMonth: [1], byMonthDay: [1] }, { locale: fr })).toBe(
+      'tous les ans en janvier le 1er'
+    )
+  })
+
+  it('FREQ=YEARLY;BYMONTH=1 -> tous les ans en janvier', () => {
+    expect(toText({ freq: 'YEARLY', byMonth: [1] }, { locale: fr })).toBe('tous les ans en janvier')
+  })
+
+  it('FREQ=YEARLY;BYMONTH=3,9 -> tous les ans en mars et septembre', () => {
+    expect(toText({ freq: 'YEARLY', byMonth: [3, 9] }, { locale: fr })).toBe(
+      'tous les ans en mars et septembre'
+    )
+  })
+
+  it('FREQ=YEARLY;BYMONTH=1,4,7 -> tous les ans en janvier, avril et juillet', () => {
+    expect(toText({ freq: 'YEARLY', byMonth: [1, 4, 7] }, { locale: fr })).toBe(
+      'tous les ans en janvier, avril et juillet'
+    )
+  })
+})
+
+describe('toText FR: BYSETPOS patterns', () => {
+  it('FREQ=MONTHLY;BYDAY=FR;BYSETPOS=-1 -> tous les mois le dernier vendredi', () => {
+    expect(
+      toText(
+        {
+          freq: 'MONTHLY',
+          byDay: [{ weekday: 'FR', ordinal: undefined }],
+          bySetPos: [-1],
+        },
+        { locale: fr }
+      )
+    ).toBe('tous les mois le dernier vendredi')
+  })
+
+  it('FREQ=MONTHLY;BYDAY=MO;BYSETPOS=1 -> tous les mois le 1er lundi', () => {
+    expect(
+      toText(
+        {
+          freq: 'MONTHLY',
+          byDay: [{ weekday: 'MO', ordinal: undefined }],
+          bySetPos: [1],
+        },
+        { locale: fr }
+      )
+    ).toBe('tous les mois le 1er lundi')
+  })
+
+  it('FREQ=MONTHLY;BYDAY=MO,TU,WE,TH,FR;BYSETPOS=-1 -> tous les mois le dernier jour ouvrable', () => {
+    expect(
+      toText(
+        {
+          freq: 'MONTHLY',
+          byDay: [
+            { weekday: 'MO', ordinal: undefined },
+            { weekday: 'TU', ordinal: undefined },
+            { weekday: 'WE', ordinal: undefined },
+            { weekday: 'TH', ordinal: undefined },
+            { weekday: 'FR', ordinal: undefined },
+          ],
+          bySetPos: [-1],
+        },
+        { locale: fr }
+      )
+    ).toBe('tous les mois le dernier jour ouvrable')
+  })
+})
+
+describe('toText FR: COUNT and UNTIL', () => {
+  it('FREQ=DAILY;COUNT=5 -> tous les jours, 5 fois', () => {
+    expect(toText({ freq: 'DAILY', count: 5 }, { locale: fr })).toBe('tous les jours, 5 fois')
+  })
+
+  it('FREQ=DAILY;COUNT=1 -> tous les jours, 1 fois', () => {
+    expect(toText({ freq: 'DAILY', count: 1 }, { locale: fr })).toBe('tous les jours, 1 fois')
+  })
+
+  it("FREQ=WEEKLY;UNTIL=PlainDate(2025-01-01) -> toutes les semaines jusqu'au 1er janvier 2025", () => {
+    const T = getTemporal()
+    const until = T.PlainDate.from({ year: 2025, month: 1, day: 1 })
+    expect(toText({ freq: 'WEEKLY', until }, { locale: fr })).toBe(
+      "toutes les semaines jusqu'au 1er janvier 2025"
+    )
+  })
+})
+
+describe('toText FR: time clause (BYHOUR and BYMINUTE)', () => {
+  it('FREQ=DAILY;BYHOUR=9;BYMINUTE=0 -> tous les jours à 9:00', () => {
+    expect(toText({ freq: 'DAILY', byHour: [9], byMinute: [0] }, { locale: fr })).toBe(
+      'tous les jours à 9:00'
+    )
+  })
+
+  it('FREQ=DAILY;BYHOUR=9;BYMINUTE=30 -> tous les jours à 9:30', () => {
+    expect(toText({ freq: 'DAILY', byHour: [9], byMinute: [30] }, { locale: fr })).toBe(
+      'tous les jours à 9:30'
+    )
+  })
+
+  it('FREQ=DAILY;BYHOUR=9,17;BYMINUTE=0 -> tous les jours à 9:00 et 17:00', () => {
+    expect(toText({ freq: 'DAILY', byHour: [9, 17], byMinute: [0] }, { locale: fr })).toBe(
+      'tous les jours à 9:00 et 17:00'
+    )
+  })
+})
+
+describe('toText FR: formatOrdinal', () => {
+  it('ordinal 1 -> 1er', () => {
+    expect(toText({ freq: 'MONTHLY', byMonthDay: [1] }, { locale: fr })).toBe('tous les mois le 1er')
+  })
+
+  it('ordinal 2 -> 2e', () => {
+    expect(toText({ freq: 'MONTHLY', byMonthDay: [2] }, { locale: fr })).toBe('tous les mois le 2e')
+  })
+
+  it('ordinal 3 -> 3e', () => {
+    expect(toText({ freq: 'MONTHLY', byMonthDay: [3] }, { locale: fr })).toBe('tous les mois le 3e')
+  })
+
+  it('ordinal 21 -> 21e', () => {
+    expect(toText({ freq: 'MONTHLY', byMonthDay: [21] }, { locale: fr })).toBe(
+      'tous les mois le 21e'
+    )
+  })
+
+  it('negative ordinal -2 renders as avant-dernier in BYDAY context', () => {
+    expect(
+      toText({ freq: 'MONTHLY', byDay: [{ weekday: 'MO', ordinal: -2 }] }, { locale: fr })
+    ).toBe('tous les mois le avant-dernier lundi')
+  })
+})
+
+describe('toText FR: formatList (no Oxford comma)', () => {
+  it('two items joined with "et" only', () => {
+    expect(
+      toText(
+        {
+          freq: 'WEEKLY',
+          byDay: [
+            { weekday: 'MO', ordinal: undefined },
+            { weekday: 'FR', ordinal: undefined },
+          ],
+        },
+        { locale: fr }
+      )
+    ).toBe('toutes les semaines le lundi et vendredi')
+  })
+
+  it('three items: comma between first two, then "et" (no Oxford comma)', () => {
+    expect(
+      toText(
+        {
+          freq: 'WEEKLY',
+          byDay: [
+            { weekday: 'MO', ordinal: undefined },
+            { weekday: 'WE', ordinal: undefined },
+            { weekday: 'FR', ordinal: undefined },
+          ],
+        },
+        { locale: fr }
+      )
+    ).toBe('toutes les semaines le lundi, mercredi et vendredi')
+  })
+})
+
+describe('toText FR: complex rule fallback (locale-specific)', () => {
+  it('BYWEEKNO triggers FR fallback phrase', () => {
+    expect(
+      toText(
+        {
+          freq: 'YEARLY',
+          byWeekNo: [1],
+          byDay: [{ weekday: 'MO', ordinal: undefined }],
+        },
+        { locale: fr }
+      )
+    ).toBe(FR_FALLBACK)
+  })
+
+  it('BYYEARDAY triggers FR fallback phrase', () => {
+    expect(toText({ freq: 'YEARLY', byYearDay: [1] }, { locale: fr })).toBe(FR_FALLBACK)
+  })
+
+  it('FR fallback is different from EN fallback', () => {
+    expect(FR_FALLBACK).not.toBe(COMPLEX_RULE_FALLBACK)
+  })
+
+  it('FR fallback is different from DE fallback', () => {
+    expect(FR_FALLBACK).not.toBe(DE_FALLBACK)
   })
 })

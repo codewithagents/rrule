@@ -21,6 +21,10 @@
     "./locales/de": {
       "types": "./dist/locales/de.d.ts",
       "import": "./dist/locales/de.js"
+    },
+    "./locales/fr": {
+      "types": "./dist/locales/fr.d.ts",
+      "import": "./dist/locales/fr.js"
     }
   },
   "sideEffects": false,
