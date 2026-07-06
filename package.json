@@ -20,7 +20,7 @@
     "@typescript-eslint/eslint-plugin": "catalog:",
     "@typescript-eslint/parser": "catalog:",
     "eslint": "catalog:",
-    "fallow": "^2.101.0",
+    "fallow": "^3.2.0",
     "prettier": "catalog:",
     "typescript": "catalog:"
   }
