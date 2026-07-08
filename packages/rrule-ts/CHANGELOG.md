@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/codewithagents/rrule/compare/rrule-ts-v0.3.0...rrule-ts-v0.4.0) (2026-07-04)
+
+
+### Features
+
+* **rrule-ts:** add French (fr) locale for toText ([04c5091](https://github.com/codewithagents/rrule/commit/04c5091941cd228b1000a49cfe2530ce598c14ce))
+
 ## [0.3.0](https://github.com/codewithagents/rrule/compare/rrule-ts-v0.2.1...rrule-ts-v0.3.0) (2026-07-04)
 
 
